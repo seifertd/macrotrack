@@ -1,43 +1,55 @@
 <%# Persistent header strip (design §10): consumed / target plus macro composition, for
     whichever day is on screen — not unconditionally today, or the bar contradicts the list
-    below it. Deliberately no "remaining parses" counter: there is no quota. %>
+    below it. Deliberately no "remaining parses" counter: there is no quota.
+
+    The bar labels itself. This is a phone app, so nothing can depend on hover: a colour
+    code you have to remember is a colour code nobody reads. Segments carry their share and
+    the legend spells the macro out, which makes the colours decoration rather than a key. %>
 <% totals = user.day_totals(date) %>
-<% shares = macro_shares(totals) %>
+<% breakdown = macro_breakdown(totals) %>
 <% remaining = user.calories_remaining(date) %>
 <% today = date == user.local_today %>
 
 <header class="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur">
-  <%= link_to day_path(user.local_today), class: "block px-4 py-3" do %>
+  <%= link_to day_path(user.local_today), class: "block px-4 py-2.5" do %>
     <div class="flex items-baseline justify-between">
       <div>
         <span class="text-2xl font-semibold tabular-nums"><%= calories(totals[:calories]) %></span>
         <span class="text-sm text-slate-500">/ <%= calories(user.daily_calorie_target) %> kcal</span>
       </div>
-      <span class="text-sm tabular-nums <%= remaining.negative? ? "text-rose-600" : "text-slate-500" %>">
-        <%= remaining.negative? ? "#{calories(remaining.abs)} over" : "#{calories(remaining)} left" %>
-      </span>
-    </div>
-
-    <div class="mt-2 flex h-1.5 overflow-hidden rounded-full bg-slate-200">
-      <div class="bg-emerald-500" style="width: <%= shares[:protein_g] %>%"></div>
-      <div class="bg-amber-500" style="width: <%= shares[:fat_g] %>%"></div>
-      <div class="bg-sky-500" style="width: <%= shares[:carbs_g] %>%"></div>
-    </div>
-
-    <div class="mt-1.5 flex items-center gap-4 text-xs text-slate-500">
-      <span><span class="font-medium text-emerald-700">P</span> <%= grams(totals[:protein_g]) %></span>
-      <span><span class="font-medium text-amber-700">F</span> <%= grams(totals[:fat_g]) %></span>
-      <span><span class="font-medium text-sky-700">C</span> <%= grams(totals[:carbs_g]) %></span>
-
-      <span class="ml-auto flex items-center gap-2">
+      <div class="flex items-baseline gap-2 text-sm">
         <%# Say which day these numbers are, whenever they aren't today's. %>
         <% unless today %>
-          <span class="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
+          <span class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
             <%= date.strftime("%-d %b") %>
           </span>
         <% end %>
-        <span><%= user.name %></span>
-      </span>
+        <span class="tabular-nums <%= remaining.negative? ? "text-rose-600" : "text-slate-500" %>">
+          <%= remaining.negative? ? "#{calories(remaining.abs)} over" : "#{calories(remaining)} left" %>
+        </span>
+      </div>
+    </div>
+
+    <div class="mt-2 flex h-5 overflow-hidden rounded bg-slate-200 text-[10px] font-semibold text-white">
+      <% breakdown.each do |macro| %>
+        <div class="flex items-center justify-center <%= macro[:color] %>"
+             style="width: <%= macro[:share] %>%"
+             title="<%= macro[:label] %>: <%= grams(macro[:grams]) %>, <%= macro[:share] %>% of calories">
+          <% if macro[:share] >= ApplicationHelper::LABEL_THRESHOLD %>
+            <%= macro[:letter] %>&nbsp;<%= macro[:share] %>%
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="mt-1.5 flex items-center gap-3 text-xs text-slate-500">
+      <% breakdown.each do |macro| %>
+        <span class="flex items-center gap-1.5">
+          <span class="h-2 w-2 shrink-0 rounded-full <%= macro[:color] %>"></span>
+          <%= macro[:label] %>
+          <span class="font-medium tabular-nums text-slate-700"><%= grams(macro[:grams]) %></span>
+        </span>
+      <% end %>
     </div>
   <% end %>
 </header>
