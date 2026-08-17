@@ -1,8 +1,10 @@
-<%# Persistent header strip (design §10): consumed / target plus macro composition.
-    Deliberately no "remaining parses" counter — there is no quota. %>
-<% totals = user.day_totals %>
+<%# Persistent header strip (design §10): consumed / target plus macro composition, for
+    whichever day is on screen — not unconditionally today, or the bar contradicts the list
+    below it. Deliberately no "remaining parses" counter: there is no quota. %>
+<% totals = user.day_totals(date) %>
 <% shares = macro_shares(totals) %>
-<% remaining = user.calories_remaining %>
+<% remaining = user.calories_remaining(date) %>
+<% today = date == user.local_today %>
 
 <header class="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur">
   <%= link_to day_path(user.local_today), class: "block px-4 py-3" do %>
@@ -22,11 +24,20 @@
       <div class="bg-sky-500" style="width: <%= shares[:carbs_g] %>%"></div>
     </div>
 
-    <div class="mt-1.5 flex gap-4 text-xs text-slate-500">
+    <div class="mt-1.5 flex items-center gap-4 text-xs text-slate-500">
       <span><span class="font-medium text-emerald-700">P</span> <%= grams(totals[:protein_g]) %></span>
       <span><span class="font-medium text-amber-700">F</span> <%= grams(totals[:fat_g]) %></span>
       <span><span class="font-medium text-sky-700">C</span> <%= grams(totals[:carbs_g]) %></span>
-      <span class="ml-auto"><%= user.name %></span>
+
+      <span class="ml-auto flex items-center gap-2">
+        <%# Say which day these numbers are, whenever they aren't today's. %>
+        <% unless today %>
+          <span class="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
+            <%= date.strftime("%-d %b") %>
+          </span>
+        <% end %>
+        <span><%= user.name %></span>
+      </span>
     </div>
   <% end %>
 </header>

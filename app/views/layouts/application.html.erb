@@ -23,7 +23,7 @@
 
   <body class="bg-slate-50 text-slate-900 antialiased">
     <% if authenticated? %>
-      <%= render "shared/header_strip", user: Current.user %>
+      <%= render "shared/header_strip", user: Current.user, date: @header_date || Current.user.local_today %>
     <% end %>
 
     <main class="mx-auto w-full max-w-xl px-4 pb-24 <%= authenticated? ? "pt-4" : "pt-10" %>">
