@@ -7,6 +7,6 @@ class PlanController < ApplicationController
   def show
     return head :not_found unless PlanDocument.exists?
 
-    @body = PlanDocument.body_html
+    @body, @packages = PlanDocument.render
   end
 end

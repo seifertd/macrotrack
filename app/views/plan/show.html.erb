@@ -1,5 +1,7 @@
 <div class="wrap">
-  <%= link_to "← Back to today", root_path, class: "backlink" %>
+  <% unless local_assigns[:standalone] %>
+    <%= link_to "← Back to today", root_path, class: "backlink" %>
+  <% end %>
 
   <header class="masthead">
     <div class="masthead__eyebrow">Implementation plan</div>
@@ -10,20 +12,35 @@
   <div class="status">
     <div class="status__cell">
       <span class="status__k">Finished</span>
-      <span class="status__v">WP1 – WP3</span>
+      <span class="status__v"><%= @packages.count { |p| p.state == "done" } %> of <%= @packages.size %></span>
       <span class="status__note">Deployed, on the phone, backed up</span>
     </div>
     <div class="status__cell">
       <span class="status__k">Next</span>
-      <span class="status__v">WP4</span>
+      <span class="status__v"><%= @packages.find { |p| p.state == "next" }&.label %></span>
       <span class="status__note">Log a meal by typing a sentence</span>
     </div>
     <div class="status__cell">
       <span class="status__k">Updated</span>
-      <span class="status__v"><%= PlanDocument::SOURCE.mtime.strftime("%-d %b") %></span>
+      <span class="status__v"><%= PlanDocument.updated_at.strftime("%-d %b") %></span>
       <span class="status__note">Rendered from the deployed release</span>
     </div>
   </div>
+
+  <nav class="toc" aria-label="Work packages">
+    <p class="toc__k">Work packages — in build order</p>
+    <ol class="toc__list">
+      <% @packages.each do |package| %>
+        <li class="toc__item">
+          <a class="toc__link" href="#<%= package.anchor %>">
+            <span class="toc__dot toc__dot--<%= package.state %>" aria-hidden="true"></span>
+            <span class="toc__num"><%= package.label %></span>
+            <span class="toc__title"><%= package.title %></span>
+          </a>
+        </li>
+      <% end %>
+    </ol>
+  </nav>
 
   <main class="flow">
     <%= @body %>
