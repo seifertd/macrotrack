@@ -12,7 +12,7 @@
 
     <%= yield :head %>
 
-    <%# PWA manifest is enabled in WP2. %>
+    <link rel="manifest" href="<%= pwa_manifest_path %>">
 
     <link rel="icon" href="/icon.png" type="image/png">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
