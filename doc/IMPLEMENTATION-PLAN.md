@@ -26,6 +26,16 @@ I probed the local machine and `das` before writing this. These are checked, cur
 | Ruby on host | system RVM at `/usr/local/rvm`, per-app gemsets |
 | Existing apps' DB | all SQLite (chord-practice, bbo-free) — MacroTrack would be the first Postgres app |
 
+### The two-user assumption is gone (2026-08-17)
+
+Design doc rev. 3 asserted a two-person household *in code* — `User.where.not(id: user.id).sole` — and defended it as "an assertion of the app's core assumption." That was wrong, and it's now fixed in both documents and the schema.
+
+The problem wasn't that two is the wrong number today; it's that "the other user" is not a local assumption. It appeared in a **tool schema**, a **dispatcher**, and a **UI affordance**, so a third account would have meant editing all three plus every query that said "both users." That's the definition of an assumption that's cheap to allow for now and expensive to retrofit.
+
+**What changed:** a `households` table, `users.household_id`, and sharing scoped to the household rather than to "every row in `users`". `copy_to_household_member` now takes a `member_name`; with exactly one other member the model may omit it, and with several an ambiguous request comes back as an `is_error: true` tool result so the assistant asks instead of guessing.
+
+**What did not change:** two people is still the *design case*. There's still no signup route, the "also log for" affordance still renders as one button naming one person, and the UI is still tuned for a household of two. `foods` stays global rather than per-household — a nutrition database has no reason to be private.
+
 ### Three corrections to the design doc
 
 1. **§3 says "deployed with Kamal." Don't.** There's no docker on your laptop or (as far as the probe shows) a docker workflow on das, and every app on that box is Capistrano + RVM + systemd + nginx. Copy `chord-practice`'s deploy setup instead — you already know it works, and it's a 20-minute adaptation rather than a new deployment system to learn. Kamal on a box already running four non-containerized apps behind hand-written nginx vhosts buys you nothing here.

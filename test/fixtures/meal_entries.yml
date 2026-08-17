@@ -1,0 +1,22 @@
+# consumed_at is written in UTC, as Rails stores it. The America/Los_Angeles offset is
+# -7 during DST, so 2026-08-17 06:30 UTC is 2026-08-16 23:30 local — deliberately the
+# late-night snack that must not land on the wrong day.
+doug_late_snack:
+  user: doug
+  food: chicken_bowl
+  source: manual
+  calories: 300
+  protein_g: 10
+  fat_g: 12
+  carbs_g: 35
+  consumed_at: 2026-08-17 06:30:00
+
+doug_early_breakfast:
+  user: doug
+  food: chicken_bowl
+  source: manual
+  calories: 500
+  protein_g: 30
+  fat_g: 20
+  carbs_g: 45
+  consumed_at: 2026-08-17 15:30:00

@@ -1,0 +1,27 @@
+<% content_for :title, "Edit entry — MacroTrack" %>
+
+<div class="flex items-center justify-between">
+  <h1 class="text-lg font-semibold">Edit entry</h1>
+  <%= link_to "Back", day_path(Current.user.local_date(@meal_entry.consumed_at)),
+        class: "text-sm text-slate-500 underline hover:no-underline" %>
+</div>
+
+<% if @meal_entry.errors.any? %>
+  <ul class="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+    <% @meal_entry.errors.full_messages.each do |message| %>
+      <li><%= message %></li>
+    <% end %>
+  </ul>
+<% end %>
+
+<div class="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+  <%= render "meal_entries/form", meal_entry: @meal_entry, url: meal_entry_path(@meal_entry), submit_label: "Save" %>
+</div>
+
+<% if @meal_entry.raw_input.present? %>
+  <%# Kept visible permanently, not for editing — for understanding a weird number weeks later (design §6). %>
+  <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+    <p class="text-xs font-medium uppercase tracking-wide text-slate-400">What you said</p>
+    <p class="mt-1"><%= @meal_entry.raw_input %></p>
+  </div>
+<% end %>

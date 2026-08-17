@@ -92,10 +92,26 @@ That's the whole auth story. Devise, `confirmable`, and email deliverability are
 
 ## 5. Data Model
 
+> **Correction (2026-08-17): the app does not assume exactly two users.** Rev. 3 originally
+> asserted a two-person household in code (`User.where.not(id: user.id).sole`) and called that
+> "an assertion of the app's core assumption." That was a mistake — it's the kind of assumption
+> that's free to allow for now and expensive to retrofit, because "the other user" appears in a
+> tool schema, a dispatcher, and a UI affordance. There is now a `households` table; sharing is
+> scoped to a household, which happens to contain two people today. Two people remains the
+> *design case* — the UI is tuned for it and there is still no signup route — but nothing
+> breaks when a third account appears.
+
 ```ruby
+create_table :households do |t|
+  t.string   :name, null: false                       # "Seifert" — the unit that shares a kitchen
+  t.timestamps
+end
+
 create_table :users do |t|
-  t.string   :name, null: false                       # "Doug" / "<wife>" — shown on shared entries
-  t.string   :email, null: false
+  t.references :household, null: false                # sharing is scoped to this, not to "all users"
+  t.string   :name, null: false                       # "Doug" — shown on shared entries, and on the
+                                                      # "also log for <name>" button
+  t.string   :email_address, null: false              # the auth generator's column name, not :email
   t.string   :password_digest, null: false
   t.string   :timezone, null: false, default: "UTC"   # REQUIRED — see note below
   t.integer  :daily_calorie_target, default: 2000
@@ -130,9 +146,9 @@ add_index :messages, [:conversation_id, :created_at]
 ```
 
 ```ruby
-# foods — canonical/cached items, SHARED between both users. This is how repeat
-# meals avoid inference entirely, and with two people in one household the hit
-# rate is better than it would be for one person alone.
+# foods — canonical/cached items, shared by every user (not scoped to a household).
+# This is how repeat meals avoid inference entirely, and the hit rate is better than
+# it would be for one person alone: a nutrition database has no reason to be private.
 create_table :foods do |t|
   t.string  :name, null: false
   t.string  :source                # usda | openfoodfacts | ai_estimate | user_custom
@@ -290,7 +306,7 @@ Every logging path is tried in this order. Most meals never reach the AI.
 
 | # | Method | Accuracy | Notes |
 |---|---|---|---|
-| 1 | **Repeat-meal match** | As good as the original entry | Fuzzy-match against *both users'* last 90 days, then global `foods`. `pg_trgm` similarity, no embeddings. |
+| 1 | **Repeat-meal match** | As good as the original entry | Fuzzy-match against the *household's* last 90 days, then global `foods`. `pg_trgm` similarity, no embeddings. |
 | 2 | **Barcode scan** | Ground truth | `BarcodeDetector` (native in Chrome on Android, on-device, free) + OpenFoodFacts. Zero inference. |
 | 3 | **Voice / text** | Estimate | §6. The primary path for anything novel — and the one we're optimizing for. |
 | 4 | **Nutrition-label OCR** | Ground truth | Photo of the label. Reading, not estimating. |
@@ -303,7 +319,9 @@ Note the reorder from rev. 2: **repeat-meal matching moves to #1**, ahead of bar
 
 ### Household affordance: log it for both of us
 
-We eat the same dinner most nights. Any entry gets a **"also log for \<name\>"** button that copies it to the other user's day (`source: "copied"`, same macros, `consumed_at` = now). The assistant can do it too via a `copy_to_household_member` tool. This is the kind of feature a two-person app gets to have and a product doesn't — it halves the logging burden on ~40% of meals.
+We eat the same dinner most nights. Any entry gets an **"also log for \<name\>"** affordance that copies it to another household member's day (`source: "copied"`, same macros, `consumed_at` = now). The assistant can do it too via `copy_to_household_member`. This halves the logging burden on ~40% of meals.
+
+With one other member it renders as a single button naming them, which is the case we're building for. With more it becomes a short list. The *implementation* takes a target member either way (§16) — that's the whole point of not hardcoding "the other user."
 
 ---
 
@@ -392,7 +410,7 @@ The paragraph on transcripts is new in rev. 3 and is doing real work — it's wh
 - **Persistent header strip**: calories consumed / target, macro bars. Tapping opens today's entries. No "remaining parses" counter — there's no quota.
 - **Low-confidence entries render differently** — a hedged estimate visibly hedged. Tap to correct; correction goes through the same chat (`update_meal`), not a separate edit form.
 - **"Also log for \<name\>"** on every entry (§7).
-- **Trends tab**: weekly average intake, weight trend, calibrated TDEE. This is the "is it working" screen and the honest home for §2's framing. Show both of us on the same weight chart — it's a household, and it's motivating.
+- **Trends tab**: weekly average intake, weight trend, calibrated TDEE. This is the "is it working" screen and the honest home for §2's framing. Show every household member on the same weight chart — it's a household, and it's motivating.
 - **Offline capture**: service worker + IndexedDB. Queue the audio blob or text locally, sync when connectivity returns. Realistically a manual "retry" button covers 90% of this; build the full queue only if the retry button annoys us.
 - Technically: Turbo Streams append messages; the AI turn runs in a Solid Queue job so the UI shows a typing indicator rather than blocking.
 
@@ -453,7 +471,7 @@ Ordered so the app is on both phones and genuinely usable as early as possible �
 2. **PWA shell.** Manifest, service worker, icons, standalone display. Install on both phones. From here, `git push` is the release process.
 3. **Conversational logging.** Chat UI, tool loop (§16), context windowing, Opus 5, `Conversation`/`Message`. Text-only.
 4. **Voice.** `MediaRecorder` → `/voice_entries` → STT → the phase-3 pipeline. Vocabulary hint from `foods`. **This is the phase that makes it the app we wanted.**
-5. **Repeat-meal matching + "also log for".** `pg_trgm` against both users' history. The two highest-leverage friction cuts, and both are zero-AI-cost.
+5. **Repeat-meal matching + "also log for".** `pg_trgm` against the household's history. The two highest-leverage friction cuts, and both are zero-AI-cost.
 6. **Barcode.** `BarcodeDetector` + OpenFoodFacts.
 7. **Weight logging + trends tab.**
 8. **Calibration.** Weekly TDEE/bias job, manual override.
@@ -514,16 +532,22 @@ module Ai
       }
     }.freeze
 
-    # New in rev. 3 — the household affordance from §7.
+    # New in rev. 3 — the household affordance from §7. Takes an explicit target, because
+    # "the other member" stops being well-defined the moment there are three of them. The
+    # system prompt lists the household's member names, so the model has them to hand.
     COPY_TO_HOUSEHOLD_MEMBER = {
       name: "copy_to_household_member",
-      description: "Copy an already-logged meal to the other household member's log, for when " \
-                   "both people ate the same thing. Use when the user says something like " \
-                   "'we both had that' or 'log that for her too'.",
+      description: "Copy an already-logged meal to another household member's log, for when " \
+                   "more than one person ate the same thing. Use when the user says something " \
+                   "like 'we both had that' or 'log that for her too'.",
       input_schema: {
         type: "object",
         properties: {
-          meal_entry_id: { type: "integer", description: "ID of the entry to copy" }
+          meal_entry_id: { type: "integer", description: "ID of the entry to copy" },
+          member_name:   { type: "string",
+                           description: "Display name of the household member to copy to, " \
+                                        "as listed in the system prompt. Omit only if the " \
+                                        "household has exactly one other member." }
         },
         required: %w[meal_entry_id]
       }
@@ -643,14 +667,30 @@ module Ai
     end
 
     def self.copy_to_member(user, input)
-      source = user.meal_entries.find(input["meal_entry_id"])
-      other  = User.where.not(id: user.id).sole                # exactly two users
-      copy   = other.meal_entries.create!(
-        source.slice(*MEAL_ATTRS, "food_id", "raw_input").merge(
+      entry  = user.meal_entries.find(input["meal_entry_id"])
+      target = resolve_member(user, input["member_name"])
+      copy   = target.meal_entries.create!(
+        entry.slice(*MEAL_ATTRS, "food_id", "raw_input").merge(
           source: "copied", consumed_at: Time.current
         )
       )
-      { copied: true, to: other.name, meal_entry_id: copy.id }
+      { copied: true, to: target.name, meal_entry_id: copy.id }
+    end
+
+    # Resolve by name when given one. With a single other member, allow the model to omit
+    # it — that's the common case and asking would be pointless. With several, insist,
+    # because guessing whose day to modify is worse than one clarifying question.
+    def self.resolve_member(user, name)
+      members = user.household_members
+
+      if name.present?
+        user.household_member_named(name) ||
+          raise(ArgumentError, "No household member named #{name}. Members: #{members.map(&:name).join(', ')}")
+      elsif members.one?
+        members.first
+      else
+        raise ArgumentError, "Which member? One of: #{members.map(&:name).join(', ')}"
+      end
     end
 
     def self.log_exercise(user, input)
@@ -673,7 +713,7 @@ module Ai
 end
 ```
 
-`User.where.not(id: user.id).sole` raises if there aren't exactly two users. That's correct — it's an assertion of the app's core assumption, and it should fail loudly if we ever add a third account.
+The `ArgumentError`s in `resolve_member` become `is_error: true` tool results via `dispatch`'s rescue, which means the model reads the failure and can ask the user which member it meant. That's the right shape: an ambiguous copy target is a question, not a crash.
 
 ---
 
@@ -681,7 +721,7 @@ end
 
 - **Domain / subdomain name.** Subdomain on the existing Linode is the plan; needs a name.
 - **STT provider.** Compare two or three on a real 20-second clip of one of us rambling about dinner, and pick on **transcription accuracy of food nouns** — latency is not a tiebreaker (§6).
-- **Does `pg_trgm` suffice for repeat-meal matching?** Start with trigram plus a recency window across both users; reach for `pgvector` only if match rates are poor in real use.
+- **Does `pg_trgm` suffice for repeat-meal matching?** Start with trigram plus a recency window across the household; reach for `pgvector` only if match rates are poor in real use.
 - **Minimum viable calibration window.** §12 assumes 2–3 weeks of weight data. Needs a graceful "not enough data yet" state rather than a garbage TDEE.
 
 ### Resolved in rev. 3
