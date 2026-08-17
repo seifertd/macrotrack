@@ -20,6 +20,11 @@ append :linked_dirs, "log", "tmp/pids", "tmp/cache", "tmp/sockets", "public/syst
 
 set :keep_releases, 3
 
+# db:migrate only touches the primary database. The Solid Cache/Queue/Cable
+# databases are defined by db/*_schema.rb rather than migrations, and only
+# db:prepare loads a schema into an empty one.
+set :migration_command, "db:prepare"
+
 # tailwindcss-rails scans views/js to determine which CSS classes to emit,
 # so changes to these files must trigger asset recompilation on deploy.
 append :assets_dependencies, "app/views", "app/javascript", "app/components", "app/helpers"
