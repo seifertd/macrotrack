@@ -216,6 +216,51 @@ Build in this order; each step is independently testable:
 
 ---
 
+## WP4.5 — Recipe import from Drive *(target: one evening for phase 1, several sittings for phase 2)*
+
+**Goal: the ~141 recipes in the shared Drive folder become `foods` rows, so "log a bowl of the lentil soup" hits retrieval instead of a fresh estimate.** Added 2026-08-17 after the first real friction point: the burst cherry tomato pasta had to be costed by hand, ingredient by ingredient, before it could be logged.
+
+Folder: `0B2s-AeGV6GVJN0ZkYkY1LUdPdU0` (shared — files owned by doug@dseifert.net, doug.seifert@gmail.com, and raquel@dseifert.net).
+
+**A recipe becomes one `foods` row with per-100g macros — not a new Recipe model with ingredients.** `foods` is already per-100g and `meal_entries.quantity_grams` is grams, so a portion is just a weight. This needs no schema change and feeds WP6's repeat-matching for free via the existing trigram index on `foods.name`. A full ingredient model only earns its keep if you want to scale recipes up and down; don't build it on spec.
+
+**Do this after WP4, not before.** It reuses WP4's machinery — parse text into ingredients, look up or estimate nutrition per ingredient, total it. Building it first means building that twice.
+
+### Inventory (counted 2026-08-17)
+
+| Format | Count | Extraction |
+|---|---:|---|
+| PDF, web print-outs | ~62 | Clean text |
+| PDF, 2012-era scans | ~40 | Vision — see below |
+| Google Docs | ~34 | Clean text |
+| `SeifertFamilyRecipes.docx` | 1 | A compilation; needs splitting into many |
+| PNG / JPEG photos | 2 | Vision |
+| `.html` / `.mhtml` | 2 | Clean text |
+
+### Phase 1 — the ~100 clean files
+
+Batch script, run once, largely unattended. Extract → ingredients → nutrition per ingredient → total → divide by stated yield → one `foods` row.
+
+**The web print-outs carry their own yield.** The burst tomato pasta PDF contains `Yield: Serves 4` as structured metadata. That's the answer to the hardest number in the whole pipeline, free, for most of the corpus.
+
+### Phase 2 — the ~40 scans
+
+Mostly Raquel's, uploaded in one batch on 2012-07-25: scans of handwritten recipe cards. **Do not use Drive's OCR text** — it is bad in exactly the way that matters. On the Lentil Soup card it read `5 minutes` where the card says **45**, turned "2–3 tsp" into `23+sp`, flattened the brace structure grouping ingredients into two cooking stages, and dropped a caret-inserted "Remove from heat" entirely.
+
+**Reading the page image with a vision model recovers all of it**, including ignoring the bleed-through from *Pigs in the Blanket* printed on the reverse. Verified by hand on 2026-08-17, n=1. Pipeline: `gdrive download → magick -density 200 file.pdf[0] page.png → vision`. The `~/Tools/gdrive` CLI on the workstation is already authenticated.
+
+These are the irreplaceable ones — family recipe cards whose only digital copy is a 2012 scan — so they get a review screen and a slower path. A misread quantity produces confidently wrong macros with nothing to flag it.
+
+### Three things to design for
+
+1. **No yield on the scans.** The cards say nothing like "serves 4". Two quarts of stock and two cups of lentils is obviously a big pot, but per-100g macros need a real number — so weigh the finished dish once, the same fix as for anything cooked from a recipe.
+2. **Duplicates.** Lara's Lamb & Rice, Berry Bundt Cake, Sandwich Portabello and Lentil Soup each exist as *both* a Google Doc and a PDF.
+3. **Not everything is a dish.** Bourbon Sauce, Thai Curry Peanut Sauce, dry rubs, spice mixes, Horchata, Brandy Alexanders. These want per-tablespoon macros or exclusion, not a serving size.
+
+**Done when:** you can log a portion of a recipe you cooked by naming it, and the macros come from the recipe rather than from a fresh guess.
+
+---
+
 ## WP5 — Voice *(target: two evenings — the one you actually want)*
 
 Design refs: §6, §14.4. **Goal: tap, ramble, done.**
@@ -302,6 +347,8 @@ WP1 skeleton+auth+manual ──▶ WP2 deploy+PWA ──▶ WP3 backups
                                    ▼
                             WP4 chat+tool loop ──▶ WP5 VOICE ◀── the point of the project
                                    │
+                                   ├──▶ WP4.5 recipe import (Drive) ──┐
+                                   │                                  ▼
                                    ├──▶ WP6 repeat-match + also-log-for   (biggest win/hour)
                                    ├──▶ WP7 barcode
                                    └──▶ WP8 weight+trends ──▶ WP9 calibration
