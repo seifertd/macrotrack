@@ -168,7 +168,7 @@ Design refs: §3, §10 PWA specifics, §14.2. **Goal: it's on both phones, and `
 
 **Done when:** both of you have logged a real meal from your phone, from the home-screen icon, over HTTPS, and a `cap production deploy` of a trivial change shows up without reinstalling.
 
-*Server side is complete and two deploys have run clean. The remaining half of that bar — installing to both home screens and logging a real meal from each — is a hands-on-phones step, still outstanding at the time this was marked done.*
+*Met on Doug's phone: installed from Chrome, and a 559 kcal / 360 g portion of burst cherry tomato pasta logged from the home-screen icon at 12:09 pm local — stored as `19:09 UTC` and rendered on the correct day, which is the timezone path WP1 was built around. Raquel's phone install is the one piece still outstanding.*
 
 **Then use it manually for a few days.** Everything after this is friction reduction; you want to know which friction actually annoys you before optimizing it.
 
