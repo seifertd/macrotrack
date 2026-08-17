@@ -2,7 +2,9 @@
 
 Companion to `macro-tracker-design.md` (rev. 3). That doc says *what and why*; this one says *in what order, with which commands, and how you know a step is done*.
 
-Ordered so the app is on both phones by the end of work package 2 and logging by voice by the end of WP5.
+Ordered so the app is on both phones by the end of WP2, logging by conversation by the end of WP4, and logging by voice by the end of WP5 — which now sits after WP7, since barcode is half the work and gives exact numbers for anything packaged.
+
+**Build order:** WP1 → WP2 → WP3 → WP4 → WP4.5 → **WP7** → WP5 → WP6 → WP8 → WP9 → WP10. Numbers are stable identifiers, not sequence; two packages have been reordered since the first draft and keeping their numbers means existing cross-references still resolve.
 
 ---
 
@@ -267,7 +269,7 @@ These are the irreplaceable ones — family recipe cards whose only digital copy
 
 Design refs: §7 path 2, §14.6. `BarcodeDetector` (native in Chrome on Android, on-device, free) → OpenFoodFacts lookup → `foods` row with `source: "openfoodfacts"`. Ground truth, no inference. Include a manual-entry fallback for the products OpenFoodFacts doesn't have — it'll be more of them than you expect.
 
-**`BarcodeDetector` does not exist in Safari.** It's Chrome-on-Android only, so if either phone is an iPhone that path needs a JS fallback (ZXing or similar) or it silently won't work there.
+**`BarcodeDetector` is Chrome-on-Android only** — it does not exist in Safari. Both phones in this household are Android (confirmed 2026-08-17), so **no JS fallback is needed**. Worth remembering only if the app ever reaches an iPhone, where the scan button would otherwise fail silently.
 
 ---
 
