@@ -36,6 +36,12 @@ class DaysControllerTest < ActionDispatch::IntegrationTest
       assert_select "span", text: "16 Aug"      # says which day these numbers are
     end
 
+    # Nothing in the header depends on hover: the macros are named in the legend and the
+    # segments carry their own percentages, because on a phone there is no hover state.
+    assert_select "header", /Protein/
+    assert_select "header", /Fat/
+    assert_select "header", /Carbs/
+
     get day_path(Date.new(2026, 8, 17))
     assert_select "header" do
       assert_select "span", text: "500"
