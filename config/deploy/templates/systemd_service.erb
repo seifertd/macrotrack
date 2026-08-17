@@ -1,0 +1,21 @@
+# Managed by Capistrano (deploy:install_systemd_unit). Do not edit on the server;
+# edit config/deploy/templates/systemd_service.erb and redeploy instead.
+[Unit]
+Description=Rails server for macros.dseifert.net
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=<%= working_directory %>
+Environment="RAILS_ENV=<%= rails_env %>"
+# Runs the Solid Queue supervisor inside Puma (config/puma.rb) rather than as a
+# second unit — two users, a handful of jobs a day, one process to supervise.
+Environment="SOLID_QUEUE_IN_PUMA=1"
+ExecStart=<%= wrapper_bin %> exec ./bin/rails server -p <%= app_port %>
+Restart=always
+ExecReload=/bin/kill -USR1 $MAINPID
+KillMode=mixed
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target
