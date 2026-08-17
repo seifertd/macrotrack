@@ -174,7 +174,17 @@ Design refs: §3, §10 PWA specifics, §14.2. **Goal: it's on both phones, and `
 
 ---
 
-## WP3 — Backups *(target: 30 minutes)*
+## WP3 — Backups ✅ *done 2026-08-17*
+
+**Result: two-machine backup, restore-tested.** das dumps nightly at 02:15 and prunes at 30 days; the xbmc box (`seifert-media`) pulls at 03:15 into `/media/backup/macros-backups/` and keeps everything. The restore test loaded the day's dump into a scratch database and matched production exactly — `users=2 meal_entries=1` on both sides — then dropped the scratch database.
+
+Three things this section didn't specify, decided during the build:
+
+- **Custom format, not plain SQL + gzip.** `pg_dump -Fc` is already compressed and lets `pg_restore` do selective and parallel restores off the same file. Both scripts check that a dump actually contains table data, because `pg_dump` exits 0 on an empty result and a useless backup is otherwise indistinguishable from a good one by size alone.
+- **The offsite copy pulls; das never pushes.** So das holds no credential for the media box. The key is a dedicated ed25519 pair generated on xbmc and restricted on the das side to `command="/usr/bin/rrsync -ro /home/doug/webapps/backups/macrotrack",restrict` — read-only, that directory only, no shell, no forwarding.
+- **Only the primary database is dumped.** cache/queue/cable are Solid-* scratch state, regenerable from `db/*_schema.rb`.
+
+Both halves write a `last_success` marker and check its age rather than trusting the directory listing, since a cron that quietly stopped leaves a directory full of yesterday's dumps that looks perfectly healthy.
 
 Design refs: §13. The doc says this "arguably belongs at step 2." It does — move it here. You now have real data and no copies of it.
 
