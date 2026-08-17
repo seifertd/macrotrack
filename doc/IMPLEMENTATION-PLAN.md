@@ -61,7 +61,7 @@ Deferring the *real DNS record* is free. Deferring the **subdomain-vs-`www.dseif
 - **An `/etc/hosts` entry buys less than it looks like.** It only helps the machine you edit. **Android has no usable `/etc/hosts`**, so the phones can't be pointed at das that way — and getting it onto the phones is the entire point of WP2. Phone testing needs a real A record and a real cert, full stop. (An `/etc/hosts` entry on the laptop is still handy for one thing: checking the nginx vhost and `config.hosts` before DNS propagates.)
 - **A subpath costs real work, and most of it lands in the PWA layer.** `config.relative_url_root`, the nginx `location` block, asset path prefixing, and — the annoying one — **a service worker can only control URLs at or below its own path**, so it must be served from `/macros/sw.js` with a matching `start_url` and `scope` in the manifest. Get this wrong and the install prompt either doesn't appear or the installed app scopes to the whole of `www.dseifert.net`.
 
-**So: build on `localhost` through WP1, and decide before WP2.** If you want the option open, the cheap insurance is to put the base URL in one config value from the start and never hardcode `/` in the manifest or service worker registration. My recommendation is the subdomain — you own the apex, a DNS record is free, and it keeps the PWA at scope `/` where every default just works.
+**Settled 2026-08-17: subdomain.** `macros.dseifert.net`, PWA at scope `/`, every default works as generated. The subpath complications above are now moot — recorded only so the reasoning survives if it ever comes back up. The remaining action is the **DNS A record**, which is a WP2 blocker with propagation lead time.
 
 ---
 
@@ -295,18 +295,17 @@ Realistic total: **10–14 evenings** to the end of WP6, which is the version yo
 
 ## Settled, 2026-08-16
 
-1. **Hostname** — `macros.dseifert.net`. Subdomain-vs-subpath still open, but must close before WP2, not before WP1; see §0.
+1. **Hostname** — `macros.dseifert.net`, as a **subdomain** (settled 2026-08-17). PWA scope `/`.
 2. **Repo** — ✅ `seifertd/macrotrack`, private, created and pushed. das's SSH access verified.
-3. **Timezone** — `America/Los_Angeles` in the seeds.
+3. **Timezone** — `America/Los_Angeles` in the seeds, and it's what the local PG 18 cluster picked up by itself.
 4. **Database** — Postgres **18.6**, both machines. Not das's existing 14, and not 19 (GA is ~a month away).
-5. **STT** — shortlist and real costs in §2. Deepgram Nova-3 is the recommended starting point; bake-off in WP5.2 decides.
+5. **STT** — **Deepgram** (settled 2026-08-17). Nova-3 with Keyterm Prompting; §2 has the costs. The WP5.2 bake-off is now a sanity check on food nouns rather than a provider choice.
 
 ## Still needs your answer
 
-1. **`users.name` for both of you** — explained in WP1.2. Two first names is all this is.
-2. **Subdomain or `www.dseifert.net/macros`** — deadline is WP2. Recommendation and the actual cost of the subpath are in §0.
-3. **Which STT provider wins the bake-off** — a WP5 decision, made with data rather than by picking now.
-4. **The PG 18 cluster's port on das** — falls out of your install; write it here when you know it.
+1. **`users.name` and email for your wife** — the seeds currently fall back to `Partner` / `partner@dseifert.net`. Set `PARTNER_NAME` and `PARTNER_EMAIL` when you seed production, or edit `db/seeds.rb`.
+2. **DNS A record** for `macros.dseifert.net` → das. The one WP2 blocker with lead time.
+3. **The PG 18 cluster's port on das** — falls out of your install; write it here when you know it.
 
 ---
 
