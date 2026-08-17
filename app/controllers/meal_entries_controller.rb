@@ -16,6 +16,7 @@ class MealEntriesController < ApplicationController
 
   def edit
     @meal_entry.food_name = @meal_entry.food&.name
+    @header_date = Current.user.local_date(@meal_entry.consumed_at)
   end
 
   def update

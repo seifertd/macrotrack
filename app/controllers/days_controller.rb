@@ -2,6 +2,7 @@ class DaysController < ApplicationController
   def show
     @user = Current.user
     @date = parse_date
+    @header_date = @date
     @entries = @user.entries_on(@date).chronological.includes(:food)
     @totals = @user.day_totals(@date)
     @meal_entry = @user.meal_entries.new(consumed_at: default_consumed_at, source: "manual")
