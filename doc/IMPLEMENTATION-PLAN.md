@@ -2,9 +2,11 @@
 
 Companion to `macro-tracker-design.md` (rev. 3). That doc says *what and why*; this one says *in what order, with which commands, and how you know a step is done*.
 
-Ordered so the app is on both phones by the end of WP2, logging by conversation by the end of WP4, and logging by voice by the end of WP5 — which now sits after WP7, since barcode is half the work and gives exact numbers for anything packaged.
+Ordered so the app is on both phones by the end of WP2, sharing meals between the two of us by the end of WP6a, logging by conversation by the end of WP4, and logging by voice by the end of WP5.
 
-**Build order:** WP1 → WP2 → WP3 → WP4 → WP4.5 → **WP7** → WP5 → WP6 → WP8 → WP9 → WP10. Numbers are stable identifiers, not sequence; two packages have been reordered since the first draft and keeping their numbers means existing cross-references still resolve.
+**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → WP4.5 → **WP7** → WP5 → WP6b → WP8 → WP9 → WP10.
+
+Numbers are stable identifiers, not sequence. Three packages have moved since the first draft — barcode ahead of voice, and repeat-meals ahead of everything else — and keeping their numbers means existing cross-references still resolve. The reordering rule has been the same each time: **whatever removes real friction soonest, for the least work.**
 
 ---
 
@@ -198,6 +200,38 @@ Design refs: §13. The doc says this "arguably belongs at step 2." It does — m
 
 ---
 
+## WP6 — Repeat meals + portioned "also log for" *(target: one evening for 6a, one for 6b)*
+
+**Moved ahead of WP4 on 2026-08-17**, and rewritten. Raquel's first request after using the app was: *let me pick from meals Doug already entered and say how much I ate* — and vice versa. That needs no AI at all, it's the friction that exists **today**, and the plan already called this package the highest leverage per hour of work in the whole document. Building it before the biggest package in the plan is the obvious trade.
+
+Design refs: §7 (path 1 and the household affordance), §14.5. Zero AI cost.
+
+### The correction: copying is portioned, not verbatim
+
+§7 and `copy_to_household_member` (§16) both copy an entry **verbatim** — same macros onto the other person's day. That's wrong for this household. Doug's targets are 2000 kcal and Raquel's are 1600; they eat the same dinner in different amounts. A verbatim copy is wrong for whoever didn't cook, and "copy then edit" makes the person with the smaller portion do the extra work every single time.
+
+**So the copy takes a portion.** Entries already carry `quantity_grams` alongside absolute macros, so scaling is `new_grams / original_grams`, applied to calories and all three macros. Where the source entry has no `quantity_grams`, fall back to a plain multiplier (½, 1, 1½, 2) — always offer the multiplier as well, because "half of what he had" is often the honest answer and nobody wants to weigh a bowl to answer it.
+
+### WP6a — pick and portion *(no AI, buildable now)*
+
+1. **A picker over recent household entries**, both people's, most recent first, deduplicated by food. This is the screen Raquel asked for: what got eaten lately, tap one.
+2. **Portion control on the way in** — grams if the source had grams, multiplier chips otherwise. Show the resulting calories live as it changes, so the number is confirmed before it's saved, not after.
+3. **Log to either person from the same screen.** "For me" / "For \<name\>" rather than a copy that always means *the other one*, so it works the same whichever of you is holding the phone.
+4. `source: "copied"` and `consumed_at` = now, per §7.
+5. **Scaling is the thing to test.** A 360 g entry at 559 kcal logged as 180 g must be 280 kcal, and rounding must not drift the macros away from the calories.
+
+**Done when:** Raquel can log her share of a dinner Doug entered, at her own portion size, in three taps and no typing.
+
+### WP6b — matching *(after WP4, uses the chat)*
+
+1. `Food.match_or_create(name)` using `pg_trgm` similarity, scoped first to the household's last 90 days, then global `foods`. Tune the threshold against real data, not a guess.
+2. **Surface matches before inference runs** — "the usual chicken bowl — 780 cal?" is retrieval, not estimation.
+3. Instrument the hit rate. It's the number that tells you whether §17's `pg_trgm`-vs-`pgvector` question needs answering at all.
+
+**Done when:** a dinner you've eaten before logs without an API call.
+
+---
+
 ## WP4 — Conversational logging, text only *(target: two or three evenings — the biggest package)*
 
 Design refs: §8, §9, §15, §16, §14.3. **Goal: type "a bowl of chili and a slice of sourdough with butter" and it gets logged.**
@@ -289,19 +323,6 @@ Design refs: §6, §14.4. **Goal: tap, ramble, done.**
 
 ---
 
-## WP6 — Repeat-meal matching + "also log for" *(target: one evening)*
-
-Design refs: §7 (paths 1 and the household affordance), §14.5. Highest leverage per hour of work in the entire plan, and zero AI cost.
-
-- `Food.match_or_create(name)` using `pg_trgm` similarity, scoped first to both users' last 90 days, then global `foods`. Tune the similarity threshold against your real data, not a guess.
-- Surface matches in the chat before inference runs: "the usual chicken bowl — 780 cal?" is retrieval, not estimation.
-- **"Also log for \<name\>"** button on every entry (the tool already exists from WP4).
-- Instrument the hit rate — a counter is enough. It's the number that tells you whether §17's `pg_trgm`-vs-`pgvector` question needs answering at all.
-
-**Done when:** a dinner you've eaten before logs without an API call, and one tap puts it on the other person's day too.
-
----
-
 ## WP8 — Weight + trends *(target: one evening)*
 
 Design refs: §11, §12 UI framing, §14.7. Weight is a number field and a button; ship it early because §12 needs history before it can do anything. Trends tab: weekly average intake, both users' weight on one chart, 7-day rolling average rather than raw dailies. Say plainly on this screen that daily numbers are approximate and the trend is the signal — that's §2's framing finding its home in the UI.
@@ -351,11 +372,14 @@ WP1 skeleton+auth+manual ──▶ WP2 deploy+PWA ──▶ WP3 backups
                               [use it for a few days]
                                    │
                                    ▼
+                     WP6a pick + portion   (no AI, biggest win/hour)
+                                   │
+                                   ▼
                             WP4 chat+tool loop ──▶ WP7 barcode ──▶ WP5 VOICE ◀── the point
                                    │                                              of the project
                                    ├──▶ WP4.5 recipe import (Drive) ──┐
                                    │                                  ▼
-                                   ├──▶ WP6 repeat-match + also-log-for   (biggest win/hour)
+                                   ├──▶ WP6b repeat-meal matching (in chat)
                                    └──▶ WP8 weight+trends ──▶ WP9 calibration
                                                                   │
                                                             WP10 CSV export

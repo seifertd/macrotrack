@@ -15,10 +15,11 @@
       <span class="status__v"><%= @packages.count { |p| p.state == "done" } %> of <%= @packages.size %></span>
       <span class="status__note">Deployed, on the phone, backed up</span>
     </div>
+    <% up_next = @packages.find { |package| package.state == "next" } %>
     <div class="status__cell">
       <span class="status__k">Next</span>
-      <span class="status__v"><%= @packages.find { |p| p.state == "next" }&.label %></span>
-      <span class="status__note">Log a meal by typing a sentence</span>
+      <span class="status__v"><%= up_next&.label %></span>
+      <span class="status__note"><%= up_next&.title %></span>
     </div>
     <div class="status__cell">
       <span class="status__k">Updated</span>
