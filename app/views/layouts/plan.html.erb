@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>MacroTrack Build Plan</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <link rel="icon" href="/icon.png" type="image/png">
+
+    <%# Standalone styling rather than the app's Tailwind: this is a long-form
+        document, not an app screen, and it wants document typography. %>
+    <style>
+      :root {
+        --ground: #f8fafc; --surface: #fff; --sunken: #eef2f7;
+        --ink: #0f172a; --ink-soft: #4a5a70; --ink-faint: #6b7c92;
+        --line: #dfe6ee;
+        --accent: #8a5a0c; --accent-bg: #f6edda;
+        --done: #46700f; --done-bg: #e8f1d9;
+        --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+        --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --ground: #0b1220; --surface: #131c2b; --sunken: #0f1826;
+          --ink: #e8edf4; --ink-soft: #a3b1c4; --ink-faint: #8496ab;
+          --line: #22314a;
+          --accent: #dca744; --accent-bg: #2a2214;
+          --done: #9ecb4a; --done-bg: #1c2714;
+        }
+      }
+      :root[data-theme="dark"] {
+        --ground: #0b1220; --surface: #131c2b; --sunken: #0f1826;
+        --ink: #e8edf4; --ink-soft: #a3b1c4; --ink-faint: #8496ab;
+        --line: #22314a;
+        --accent: #dca744; --accent-bg: #2a2214;
+        --done: #9ecb4a; --done-bg: #1c2714;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        background: var(--ground); color: var(--ink);
+        font-family: var(--serif); font-size: 1.0625rem; line-height: 1.7;
+        margin: 0; padding: 0 1.25rem 6rem; -webkit-text-size-adjust: 100%;
+      }
+      .wrap { max-width: 47rem; margin: 0 auto; }
+
+      .backlink {
+        display: inline-block; margin-top: 1.5rem;
+        font-family: var(--sans); font-size: .85rem; font-weight: 600;
+        color: var(--accent); text-decoration: none;
+      }
+      .backlink:hover { text-decoration: underline; }
+
+      .masthead {
+        display: flex; flex-direction: column; gap: .75rem;
+        padding: 2rem 0 1.75rem; border-bottom: 2px solid var(--ink);
+      }
+      .masthead__eyebrow {
+        font-family: var(--sans); font-size: .72rem; font-weight: 650;
+        letter-spacing: .13em; text-transform: uppercase; color: var(--accent);
+      }
+      .masthead h1 {
+        font-family: var(--sans); font-size: clamp(2.1rem, 6vw, 3.1rem);
+        font-weight: 750; letter-spacing: -.03em; line-height: 1.05;
+        text-wrap: balance; margin: 0;
+      }
+      .masthead p { font-size: 1.075rem; color: var(--ink-soft); margin: 0; max-width: 34rem; }
+
+      .status {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+        gap: 1px; background: var(--line); border: 1px solid var(--line);
+        border-radius: 3px; overflow: hidden; margin: 2rem 0 0;
+      }
+      .status__cell { background: var(--surface); padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .3rem; }
+      .status__k {
+        font-family: var(--sans); font-size: .68rem; font-weight: 650;
+        letter-spacing: .11em; text-transform: uppercase; color: var(--ink-faint);
+      }
+      .status__v {
+        font-family: var(--sans); font-size: 1.35rem; font-weight: 700;
+        letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+      }
+      .status__note { font-family: var(--sans); font-size: .82rem; color: var(--ink-soft); }
+
+      .flow { padding-top: .5rem; }
+      .flow h2 {
+        font-family: var(--sans); font-size: 1.5rem; font-weight: 700;
+        letter-spacing: -.02em; line-height: 1.25; text-wrap: balance;
+        margin: 3.25rem 0 1rem; padding-top: 2rem; border-top: 1px solid var(--line);
+        display: flex; flex-direction: column; align-items: flex-start; gap: .6rem;
+      }
+      .flow h2:first-of-type { border-top: 0; padding-top: 0; }
+      .flow h3 { font-family: var(--sans); font-size: 1.075rem; font-weight: 700; margin: 2.25rem 0 .6rem; }
+
+      .chip {
+        font-family: var(--sans); font-size: .67rem; font-weight: 700;
+        letter-spacing: .1em; text-transform: uppercase;
+        padding: .25rem .55rem; border-radius: 2px; line-height: 1;
+      }
+      .chip--done  { color: var(--done);      background: var(--done-bg); }
+      .chip--next  { color: var(--accent);    background: var(--accent-bg); }
+      .chip--later { color: var(--ink-faint); background: var(--sunken); }
+
+      .flow p, .flow li { max-width: 42rem; }
+      .flow p { margin: 0 0 1.05rem; }
+      .flow ul, .flow ol { margin: 0 0 1.25rem; padding-left: 1.3rem; }
+      .flow li { margin-bottom: .5rem; }
+      .flow li::marker { color: var(--ink-faint); }
+      .flow em { font-style: italic; color: var(--ink-soft); }
+      .flow a { color: var(--accent); text-underline-offset: 2px; }
+      .flow hr { border: 0; height: 1px; background: transparent; margin: 2.5rem 0; }
+      .flow blockquote {
+        margin: 0 0 1.25rem; padding: .1rem 0 .1rem 1.1rem;
+        border-left: 3px solid var(--accent); color: var(--ink-soft); font-style: italic;
+      }
+
+      .flow code {
+        font-family: var(--mono); font-size: .855em; background: var(--sunken);
+        padding: .12em .38em; border-radius: 3px; word-break: break-word;
+      }
+      .flow pre {
+        background: var(--sunken); border: 1px solid var(--line); border-radius: 4px;
+        padding: 1rem 1.15rem; overflow-x: auto; margin: 0 0 1.35rem; line-height: 1.55;
+      }
+      .flow pre code { background: none; padding: 0; font-size: .82rem; white-space: pre; word-break: normal; }
+
+      .scroller { overflow-x: auto; margin: 0 0 1.5rem; border: 1px solid var(--line); border-radius: 4px; }
+      .flow table { border-collapse: collapse; width: 100%; font-family: var(--sans); font-size: .9rem; }
+      .flow th, .flow td { text-align: left; padding: .6rem .85rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+      .flow th {
+        font-weight: 650; font-size: .72rem; letter-spacing: .07em; text-transform: uppercase;
+        color: var(--ink-faint); background: var(--sunken); white-space: nowrap;
+      }
+      .flow tbody tr:last-child td { border-bottom: 0; }
+
+      .flow li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.3rem; }
+      .flow input[type="checkbox"] { margin-right: .5rem; accent-color: var(--done); }
+
+      .colophon {
+        font-family: var(--sans); font-size: .85rem; color: var(--ink-faint);
+        border-top: 1px solid var(--line); margin-top: 3.5rem; padding-top: 1.25rem;
+      }
+
+      :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+      @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+    </style>
+  </head>
+
+  <body>
+    <%= yield %>
+  </body>
+</html>

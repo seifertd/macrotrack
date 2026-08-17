@@ -7,6 +7,10 @@ Rails.application.routes.draw do
   get "days/:date", to: "days#show", as: :day, constraints: { date: /\d{4}-\d{2}-\d{2}/ }
   root "days#show"
 
+  # The implementation plan, rendered from doc/ for the household to read.
+  # Signed-in only — it is not published anywhere.
+  get "plan" => "plan#show"
+
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
   # Can be used by load balancers and uptime monitors to verify that the app is live.
   get "up" => "rails/health#show", as: :rails_health_check

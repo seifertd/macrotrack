@@ -1,0 +1,36 @@
+<div class="wrap">
+  <%= link_to "← Back to today", root_path, class: "backlink" %>
+
+  <header class="masthead">
+    <div class="masthead__eyebrow">Implementation plan</div>
+    <h1>MacroTrack</h1>
+    <p>A calorie and macro tracker for the two of us. This is the build order — what is finished, what is next, and why each decision went the way it did.</p>
+  </header>
+
+  <div class="status">
+    <div class="status__cell">
+      <span class="status__k">Finished</span>
+      <span class="status__v">WP1 – WP3</span>
+      <span class="status__note">Deployed, on the phone, backed up</span>
+    </div>
+    <div class="status__cell">
+      <span class="status__k">Next</span>
+      <span class="status__v">WP4</span>
+      <span class="status__note">Log a meal by typing a sentence</span>
+    </div>
+    <div class="status__cell">
+      <span class="status__k">Updated</span>
+      <span class="status__v"><%= PlanDocument::SOURCE.mtime.strftime("%-d %b") %></span>
+      <span class="status__note">Rendered from the deployed release</span>
+    </div>
+  </div>
+
+  <main class="flow">
+    <%= @body %>
+  </main>
+
+  <p class="colophon">
+    Rendered from <code>doc/IMPLEMENTATION-PLAN.md</code> in the running release, so this page
+    cannot drift from the code it describes.
+  </p>
+</div>
