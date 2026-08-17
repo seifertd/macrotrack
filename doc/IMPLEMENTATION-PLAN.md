@@ -261,6 +261,16 @@ These are the irreplaceable ones — family recipe cards whose only digital copy
 
 ---
 
+## WP7 — Barcode *(target: one evening)* — **built here, before WP5**
+
+**Moved ahead of voice on 2026-08-17.** Keeps its number so existing references still resolve; only the build order changed. The reason is §6's own principle — prefer ground truth wherever it exists. A packaged product like "a Oui black cherry yogurt, 5 oz" is a label to *read*, not a description to infer from: scanning it is exact and free, while an AI estimate of the same words is a guess that can be off by 20%. It's also one evening's work against voice's two, and it makes every packaged snack accurate before the harder paths land.
+
+Design refs: §7 path 2, §14.6. `BarcodeDetector` (native in Chrome on Android, on-device, free) → OpenFoodFacts lookup → `foods` row with `source: "openfoodfacts"`. Ground truth, no inference. Include a manual-entry fallback for the products OpenFoodFacts doesn't have — it'll be more of them than you expect.
+
+**`BarcodeDetector` does not exist in Safari.** It's Chrome-on-Android only, so if either phone is an iPhone that path needs a JS fallback (ZXing or similar) or it silently won't work there.
+
+---
+
 ## WP5 — Voice *(target: two evenings — the one you actually want)*
 
 Design refs: §6, §14.4. **Goal: tap, ramble, done.**
@@ -287,12 +297,6 @@ Design refs: §7 (paths 1 and the household affordance), §14.5. Highest leverag
 - Instrument the hit rate — a counter is enough. It's the number that tells you whether §17's `pg_trgm`-vs-`pgvector` question needs answering at all.
 
 **Done when:** a dinner you've eaten before logs without an API call, and one tap puts it on the other person's day too.
-
----
-
-## WP7 — Barcode *(target: one evening)*
-
-Design refs: §7 path 2, §14.6. `BarcodeDetector` (native in Chrome on Android, on-device, free) → OpenFoodFacts lookup → `foods` row with `source: "openfoodfacts"`. Ground truth, no inference. Include a manual-entry fallback for the products OpenFoodFacts doesn't have — it'll be more of them than you expect.
 
 ---
 
@@ -345,12 +349,11 @@ WP1 skeleton+auth+manual ──▶ WP2 deploy+PWA ──▶ WP3 backups
                               [use it for a few days]
                                    │
                                    ▼
-                            WP4 chat+tool loop ──▶ WP5 VOICE ◀── the point of the project
-                                   │
+                            WP4 chat+tool loop ──▶ WP7 barcode ──▶ WP5 VOICE ◀── the point
+                                   │                                              of the project
                                    ├──▶ WP4.5 recipe import (Drive) ──┐
                                    │                                  ▼
                                    ├──▶ WP6 repeat-match + also-log-for   (biggest win/hour)
-                                   ├──▶ WP7 barcode
                                    └──▶ WP8 weight+trends ──▶ WP9 calibration
                                                                   │
                                                             WP10 CSV export
