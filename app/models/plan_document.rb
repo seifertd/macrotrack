@@ -26,6 +26,7 @@ class PlanDocument
 
   def initialize
     @packages = []
+    @next_claimed = false
   end
 
   def render
@@ -59,7 +60,7 @@ class PlanDocument
         next %(<h2>#{text}</h2>) unless match
 
         number, rest = match[1], match[2]
-        state = state_for(inner, number)
+        state = state_for(inner)
         anchor = "wp#{number.tr('.', '-')}"
 
         @packages << Package.new(anchor:, number:, title: plain_title(rest), state:)
@@ -69,9 +70,15 @@ class PlanDocument
       end
     end
 
-    def state_for(inner, number)
+    # Sections are in build order, so the first package that isn't finished is
+    # the one being worked on. Deriving it beats naming a package here, which
+    # would go stale the next time the order changes.
+    def state_for(inner)
       return "done" if inner.include?("✅")
-      number == "4" ? "next" : "later"
+      return "later" if @next_claimed
+
+      @next_claimed = true
+      "next"
     end
 
     # The heading carries a parenthetical target, a completion date and stray
