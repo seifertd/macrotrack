@@ -1,0 +1,75 @@
+<% content_for :title, "#{@date.strftime("%A %-d %B")} — MacroTrack" %>
+
+<div class="flex items-center justify-between">
+  <h1 class="text-lg font-semibold">
+    <%= @date == @user.local_today ? "Today" : @date.strftime("%A %-d %B") %>
+  </h1>
+  <nav class="flex gap-3 text-sm text-slate-500">
+    <%= link_to "‹ #{(@date - 1.day).strftime("%-d %b")}", day_path(@date - 1.day), class: "hover:text-slate-900" %>
+    <% unless @date >= @user.local_today %>
+      <%= link_to "#{(@date + 1.day).strftime("%-d %b")} ›", day_path(@date + 1.day), class: "hover:text-slate-900" %>
+    <% end %>
+  </nav>
+</div>
+
+<% if @entries.any? %>
+  <ul class="mt-4 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <% @entries.each do |entry| %>
+      <li class="px-4 py-3">
+        <div class="flex items-baseline justify-between gap-3">
+          <div class="min-w-0">
+            <p class="truncate font-medium"><%= entry.display_name %></p>
+            <p class="mt-0.5 text-xs text-slate-500">
+              <%= entry.consumed_at.strftime("%-l:%M %p").downcase %>
+              <% if entry.meal_type.present? %>· <%= entry.meal_type %><% end %>
+              <% if entry.quantity_grams.present? %>· <%= grams(entry.quantity_grams) %><% end %>
+            </p>
+          </div>
+          <div class="shrink-0 text-right">
+            <p class="font-semibold tabular-nums"><%= calories(entry.calories) %></p>
+            <p class="text-xs tabular-nums text-slate-500">
+              <%= grams(entry.protein_g) %>P <%= grams(entry.fat_g) %>F <%= grams(entry.carbs_g) %>C
+            </p>
+          </div>
+        </div>
+
+        <%# Surface uncertainty rather than hiding it (design §2). %>
+        <% if entry.confidence.present? || entry.assumptions.present? %>
+          <div class="mt-2 flex items-start gap-2">
+            <% if entry.confidence.present? %>
+              <span class="rounded px-1.5 py-0.5 text-xs font-medium <%= confidence_badge_classes(entry.confidence) %>">
+                <%= entry.confidence %>
+              </span>
+            <% end %>
+            <% if entry.assumptions.present? %>
+              <p class="text-xs text-slate-500"><%= entry.assumptions %></p>
+            <% end %>
+          </div>
+        <% end %>
+
+        <div class="mt-2 flex gap-3 text-xs">
+          <%= link_to "Edit", edit_meal_entry_path(entry), class: "text-slate-500 underline hover:no-underline" %>
+          <%= button_to "Delete", meal_entry_path(entry), method: :delete,
+                class: "text-slate-500 underline hover:no-underline",
+                form: { data: { turbo_confirm: "Delete #{entry.display_name}?" } } %>
+        </div>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p class="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+    Nothing logged yet.
+  </p>
+<% end %>
+
+<section class="mt-6 rounded-xl border border-slate-200 bg-white p-4">
+  <h2 class="font-semibold">Log something</h2>
+  <p class="mt-0.5 text-xs text-slate-500">Manual entry. Voice and chat arrive in WP4–WP5.</p>
+  <%= render "meal_entries/form", meal_entry: @meal_entry, url: meal_entries_path, submit_label: "Log it" %>
+</section>
+
+<div class="mt-6 flex items-center justify-center gap-2 text-xs text-slate-400">
+  <span>Signed in as <%= @user.name %></span>
+  <span>·</span>
+  <%= button_to "Sign out", session_path, method: :delete, class: "underline hover:no-underline" %>
+</div>

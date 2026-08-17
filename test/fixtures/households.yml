@@ -1,0 +1,7 @@
+seifert:
+  name: Seifert
+
+# A second household exists in the fixtures on purpose: it's what proves the
+# "also log for" scope is a household and not "every user in the database".
+neighbors:
+  name: Neighbors

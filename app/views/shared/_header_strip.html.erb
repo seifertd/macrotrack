@@ -1,0 +1,32 @@
+<%# Persistent header strip (design §10): consumed / target plus macro composition.
+    Deliberately no "remaining parses" counter — there is no quota. %>
+<% totals = user.day_totals %>
+<% shares = macro_shares(totals) %>
+<% remaining = user.calories_remaining %>
+
+<header class="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur">
+  <%= link_to day_path(user.local_today), class: "block px-4 py-3" do %>
+    <div class="flex items-baseline justify-between">
+      <div>
+        <span class="text-2xl font-semibold tabular-nums"><%= calories(totals[:calories]) %></span>
+        <span class="text-sm text-slate-500">/ <%= calories(user.daily_calorie_target) %> kcal</span>
+      </div>
+      <span class="text-sm tabular-nums <%= remaining.negative? ? "text-rose-600" : "text-slate-500" %>">
+        <%= remaining.negative? ? "#{calories(remaining.abs)} over" : "#{calories(remaining)} left" %>
+      </span>
+    </div>
+
+    <div class="mt-2 flex h-1.5 overflow-hidden rounded-full bg-slate-200">
+      <div class="bg-emerald-500" style="width: <%= shares[:protein_g] %>%"></div>
+      <div class="bg-amber-500" style="width: <%= shares[:fat_g] %>%"></div>
+      <div class="bg-sky-500" style="width: <%= shares[:carbs_g] %>%"></div>
+    </div>
+
+    <div class="mt-1.5 flex gap-4 text-xs text-slate-500">
+      <span><span class="font-medium text-emerald-700">P</span> <%= grams(totals[:protein_g]) %></span>
+      <span><span class="font-medium text-amber-700">F</span> <%= grams(totals[:fat_g]) %></span>
+      <span><span class="font-medium text-sky-700">C</span> <%= grams(totals[:carbs_g]) %></span>
+      <span class="ml-auto"><%= user.name %></span>
+    </div>
+  <% end %>
+</header>
