@@ -8,23 +8,30 @@ class PlanDocument
 
   CHIPS = { "done" => "Done", "next" => "Next up", "later" => "Planned" }.freeze
 
+  # One work package: enough to build a nav entry that links into the body.
+  Package = Struct.new(:anchor, :number, :title, :state, keyword_init: true) do
+    def label = "WP#{number}"
+    def chip = CHIPS[state]
+  end
+
   class << self
-    def body_html
-      Rails.cache.fetch(cache_key) { new.render }
+    # => [html, packages]
+    def render
+      Rails.cache.fetch("plan_document/#{SOURCE.mtime.to_i}") { new.render }
     end
 
     def exists? = SOURCE.exist?
+    def updated_at = SOURCE.mtime
+  end
 
-    private
-      def cache_key
-        "plan_document/#{SOURCE.mtime.to_i}"
-      end
+  def initialize
+    @packages = []
   end
 
   def render
     html = markdown.render(source_without_title)
-    html = add_status_chips(html)
-    scroll_wrap_tables(html).html_safe
+    html = annotate_headings(html)
+    [ scroll_wrap_tables(html).html_safe, @packages ]
   end
 
   private
@@ -34,33 +41,48 @@ class PlanDocument
 
     def markdown
       Redcarpet::Markdown.new(
-        Redcarpet::Render::HTML.new(with_toc_data: true),
+        Redcarpet::Render::HTML.new,
         tables: true, fenced_code_blocks: true, autolink: true,
         strikethrough: true, no_intra_emphasis: true
       )
     end
 
-    # Only work packages get a chip. The reference sections above them aren't
-    # scheduled work, so a chip there would be decoration rather than status.
-    def add_status_chips(html)
-      html.gsub(%r{<h2([^>]*)>(.*?)</h2>}m) do
-        attrs, inner = $1, $2
+    # Gives each work package a stable anchor and a status chip, and collects them
+    # for the nav. Only work packages are annotated — the reference sections
+    # above them aren't scheduled work, so a chip there would be decoration.
+    def annotate_headings(html)
+      html.gsub(%r{<h2>(.*?)</h2>}m) do
+        inner = $1
         text = inner.sub("✅", "").gsub(/\s+/, " ").strip
 
-        next %(<h2#{attrs}>#{text}</h2>) unless text.match?(/\AWP[\d.]+ /)
+        match = text.match(/\AWP([\d.]+)\s+—\s+(.*)\z/m)
+        next %(<h2>#{text}</h2>) unless match
 
-        state =
-          if inner.include?("✅")
-            "done"
-          elsif text.start_with?("WP4 —")
-            "next"
-          else
-            "later"
-          end
+        number, rest = match[1], match[2]
+        state = state_for(inner, number)
+        anchor = "wp#{number.tr('.', '-')}"
+
+        @packages << Package.new(anchor:, number:, title: plain_title(rest), state:)
 
         chip = %(<span class="chip chip--#{state}">#{CHIPS[state]}</span>)
-        %(<h2#{attrs} class="wp">#{chip}<span class="wp__text">#{text}</span></h2>)
+        %(<h2 id="#{anchor}" class="wp">#{chip}<span class="wp__text">#{text}</span></h2>)
       end
+    end
+
+    def state_for(inner, number)
+      return "done" if inner.include?("✅")
+      number == "4" ? "next" : "later"
+    end
+
+    # The heading carries a parenthetical target, a completion date and stray
+    # markup; the nav wants just the name. Entities are decoded because ERB
+    # escapes the value again on the way out.
+    def plain_title(rest)
+      CGI.unescapeHTML(rest.gsub(%r{<[^>]+>}, ""))
+        .sub(/\s*\(target:.*\z/m, "")
+        .sub(/\s*—\s*built here.*\z/im, "")
+        .sub(/\s*done\s+\d{4}-\d{2}-\d{2}\s*\z/i, "")
+        .strip
     end
 
     # Wide tables scroll inside their own container so the page body never does.
