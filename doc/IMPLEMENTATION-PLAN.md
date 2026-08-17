@@ -70,10 +70,10 @@ Deferring the *real DNS record* is free. Deferring the **subdomain-vs-`www.dseif
 - [x] **Private GitHub repo.** `git@github.com:seifertd/macrotrack.git`, `main` pushed, docs under `doc/`. The Rails app will be generated at the repo *root* (`rails new . --name=macrotrack`) so Capistrano's layout matches the other apps on the box.
 - [x] **das can pull from GitHub.** Verified: `ssh -T git@github.com` from das authenticates as `seifertd`. No deploy key needed.
 - [x] **Postgres 18.6 installed locally**, running under systemd on the default 5432. `initdb` set local auth to **trust**, so no password is needed for dev connections, and it picked up `America/Los_Angeles` as the cluster timezone on its own. Role `doug` is a superuser.
-- [ ] **Install Postgres 18 on das** (your job, per your note). Ubuntu 22.04's own repos stop at 14, so this needs the PGDG apt repo — `postgresql-18` plus **`postgresql-contrib-18`** (that's where `pg_trgm` lives; the app won't migrate without it). It'll come up as a second cluster on the next free port. `pg_lsclusters` will tell you which; put that number in the plan and in `database.yml`.
-- [ ] **Postgres role on das.** As the postgres superuser on the *18* cluster: `CREATE ROLE macrotrack LOGIN PASSWORD '...' CREATEDB;` — `CREATEDB` so `db:prepare` can create the cache/queue/cable databases. Password goes in Rails credentials, not `database.yml`.
-- [ ] **Confirm the `pg` gem compiles on das** against the new cluster's headers — `libpq-dev` from PGDG (`libpq-dev` tracks the newest installed server). `pg_config` already exists for 14; the real test is `gem install pg` after the 18 packages land.
-- [ ] **DNS A record** for `macros.dseifert.net` → das's IP. Not needed until WP2, but propagation is the one thing you can't hurry, so do it as soon as you've settled subdomain-vs-subpath.
+- [x] **Install Postgres 18 on das** — done 2026-08-17 via the PGDG apt repo (`jammy-pgdg`), `postgresql-18` 18.6. Two corrections to what this line originally said: there is no `postgresql-contrib-18`, because contrib modules (including `pg_trgm`) ship inside the main `postgresql-18` package; and installing it in the same transaction that *upgrades* `postgresql-common` skips the automatic cluster creation, so `pg_createcluster 18 main --start` was needed by hand. The old PG 14 cluster held nothing but the three system databases and was dropped and purged. **18/main is on port 5432.**
+- [x] **Postgres role and databases on das** — created by `script/setup_production_db.sh`, which is idempotent and reads the port from `pg_lsclusters` rather than hardcoding it. The four databases are pre-created and owned by `macrotrack`, so the role needs no `CREATEDB`. `pg_trgm` is created by the superuser up front, which turns the migration's `enable_extension` into a no-op. The password is generated on the host and written straight into `shared/config/database.yml` (mode 600, a Capistrano `linked_file`) — it is not in Rails credentials.
+- [x] **`pg` gem compiles on das** — verified by the first deploy's `bundle install`.
+- [x] **DNS A record** for `macros.dseifert.net` → `45.79.27.47`. Authoritative on Namecheap's `registrar-servers.com` nameservers (not Linode DNS), propagated, and TLS issued.
 - [ ] **Get an Anthropic API key** and an STT provider key (§2 below). Both into `config/credentials/production.yml.enc`.
 
 ---
@@ -145,7 +145,16 @@ Then:
 
 ---
 
-## WP2 — Deploy + PWA install *(target: one evening, possibly two)*
+## WP2 — Deploy + PWA install ✅ *done 2026-08-17*
+
+**Result: live at https://macros.dseifert.net.** Puma on 4001 with the Solid Queue supervisor running inside it, behind nginx with a Let's Encrypt cert good to 2026-11-15 and an HTTP→HTTPS redirect. `/manifest`, `/service-worker`, and both icons serve 200; Doug and Raquel are seeded and can sign in. Suite: 41 runs, 144 assertions, 0 failures.
+
+Four things worth knowing that this section didn't anticipate:
+
+- **The systemd unit and the nginx vhost are both version-controlled now.** The unit renders from `config/deploy/templates/systemd_service.erb` on every deploy, with the rvm wrapper path derived from `.ruby-version`/`.ruby-gemset`. The vhost lives at `config/deploy/nginx/`; `nginx:check` reports drift on every deploy and `nginx:install` handles the rest, except the final `sudo` — see below.
+- **`db:migrate` was the wrong migration command.** Solid Cache/Queue/Cable are defined by `db/*_schema.rb` with no migrations of their own, so `db:migrate` left them empty. `set :migration_command, "db:prepare"` in `config/deploy.rb` fixes it.
+- **Don't install libvips.** The `Using vips to process variants requires the libvips library` warning from `db:prepare` is benign. Jammy's libvips is 8.12.1, and Active Storage 8.1 hard-raises on anything below 8.13 — installing it *breaks app boot*, and `apt-get install libvips` also drags in ~30 desktop packages including a GTK2 image editor. The app's only blobs are audio, which Active Storage analyzes with ffprobe.
+- **sudo on das needs a password**, so nothing privileged can be automated from `cap`. The nginx install task stages the file and prints the commands rather than pretending otherwise.
 
 Design refs: §3, §10 PWA specifics, §14.2. **Goal: it's on both phones, and `git push && cap production deploy` is the release process.** Do this before any AI work — the doc is right that three days of real use beats three days of design, and that only starts when it's on the phones.
 
@@ -159,6 +168,8 @@ Design refs: §3, §10 PWA specifics, §14.2. **Goal: it's on both phones, and `
 
 **Done when:** both of you have logged a real meal from your phone, from the home-screen icon, over HTTPS, and a `cap production deploy` of a trivial change shows up without reinstalling.
 
+*Server side is complete and two deploys have run clean. The remaining half of that bar — installing to both home screens and logging a real meal from each — is a hands-on-phones step, still outstanding at the time this was marked done.*
+
 **Then use it manually for a few days.** Everything after this is friction reduction; you want to know which friction actually annoys you before optimizing it.
 
 ---
@@ -167,7 +178,7 @@ Design refs: §3, §10 PWA specifics, §14.2. **Goal: it's on both phones, and `
 
 Design refs: §13. The doc says this "arguably belongs at step 2." It does — move it here. You now have real data and no copies of it.
 
-- Nightly cron on das: `pg_dump` (with the `-p 5434`) → gzip → `/home/doug/webapps/backups/macrotrack/`, retain 30 days.
+- Nightly cron on das: `pg_dump` (with the `-p 5432`) → gzip → `/home/doug/webapps/backups/macrotrack/`, retain 30 days.
 - `rsync` that directory to a home machine, or push to object storage. One of the two, not neither.
 - Restore-test it **once, now**: load last night's dump into a scratch database and count rows. An untested backup is a belief, not a backup.
 
