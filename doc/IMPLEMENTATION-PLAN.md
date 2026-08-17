@@ -69,7 +69,7 @@ Deferring the *real DNS record* is free. Deferring the **subdomain-vs-`www.dseif
 
 - [x] **Private GitHub repo.** `git@github.com:seifertd/macrotrack.git`, `main` pushed, docs under `doc/`. The Rails app will be generated at the repo *root* (`rails new . --name=macrotrack`) so Capistrano's layout matches the other apps on the box.
 - [x] **das can pull from GitHub.** Verified: `ssh -T git@github.com` from das authenticates as `seifertd`. No deploy key needed.
-- [ ] **Install Postgres 18 locally.** CachyOS: `sudo pacman -S postgresql` (18.6), then `sudo -iu postgres initdb -D /var/lib/postgres/data`, `sudo systemctl enable --now postgresql`, `sudo -iu postgres createuser -s doug`. Local dev uses the default 5432 — only production carries a nonstandard port.
+- [x] **Postgres 18.6 installed locally**, running under systemd on the default 5432. `initdb` set local auth to **trust**, so no password is needed for dev connections, and it picked up `America/Los_Angeles` as the cluster timezone on its own. Role `doug` is a superuser.
 - [ ] **Install Postgres 18 on das** (your job, per your note). Ubuntu 22.04's own repos stop at 14, so this needs the PGDG apt repo — `postgresql-18` plus **`postgresql-contrib-18`** (that's where `pg_trgm` lives; the app won't migrate without it). It'll come up as a second cluster on the next free port. `pg_lsclusters` will tell you which; put that number in the plan and in `database.yml`.
 - [ ] **Postgres role on das.** As the postgres superuser on the *18* cluster: `CREATE ROLE macrotrack LOGIN PASSWORD '...' CREATEDB;` — `CREATEDB` so `db:prepare` can create the cache/queue/cable databases. Password goes in Rails credentials, not `database.yml`.
 - [ ] **Confirm the `pg` gem compiles on das** against the new cluster's headers — `libpq-dev` from PGDG (`libpq-dev` tracks the newest installed server). `pg_config` already exists for 14; the real test is `gem install pg` after the 18 packages land.
@@ -104,7 +104,9 @@ Your volume, from §6: 2 people × ~5 entries/day × ~15s ≈ **75 minutes/month
 
 ---
 
-## WP1 — Skeleton, auth, manual logging *(target: one evening)*
+## WP1 — Skeleton, auth, manual logging ✅ *done 2026-08-17*
+
+**Result: 34 tests, 108 assertions, 0 failures. Rubocop clean.** Verified by hand as well as by the suite: signed in, logged a 780 kcal burrito bowl stamped `23:30` local, and confirmed it stored as `2026-08-17 06:30 UTC`, rendered as "11:30 pm", and landed on the **2026-08-16** day page. Two things worth knowing about the local dev database: it's seeded with password `development` for both users (change it, or don't — it never leaves the laptop), and that burrito bowl is still in there as sample data.
 
 Design refs: §4, §5, §14.1. **Goal: two people can log a meal by typing numbers into a form, and see a day total.** No AI yet.
 
