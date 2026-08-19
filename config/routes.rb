@@ -4,6 +4,10 @@ Rails.application.routes.draw do
 
   resources :meal_entries, except: %i[ index show ]
 
+  # Pick a recent household meal and log it at your own portion (WP6a).
+  resources :repeats, only: %i[ index show ]
+  post "repeats/:id" => "repeats#create", as: :log_repeat
+
   # The chat is one thread per user, so it's a singular resource with no id in the URL.
   get "chat" => "chats#show", as: :chat
   post "chat/messages" => "chat_messages#create", as: :chat_messages

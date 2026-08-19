@@ -19,6 +19,23 @@ class MealEntry < ApplicationRecord
 
   scope :chronological, -> { order(:consumed_at) }
 
+  # What the household has eaten lately, newest first — the pool the repeat picker draws
+  # from. Scoped to the household rather than the user because the whole point is picking
+  # off the other person's plate.
+  def self.recent_in_household(household, since: 30.days.ago, limit: 100)
+    joins(:user).where(users: { household_id: household.id })
+      .where(consumed_at: since..)
+      .order(consumed_at: :desc).limit(limit)
+      .includes(:food, :user)
+  end
+
+  # Deduplicated by food, so a dinner eaten four times in a fortnight occupies one row of
+  # the picker instead of four. Done in Ruby rather than SQL: entries without a food row
+  # fall back to their display name, and DISTINCT ON can't express that.
+  def self.distinct_by_food(entries)
+    entries.uniq { |entry| entry.food_id || entry.display_name.downcase }
+  end
+
   # Manual and barcode entries are read or typed, not inferred, so they don't get
   # hedged in the UI the way an AI estimate does (design §2).
   def estimated?

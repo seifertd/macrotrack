@@ -19,7 +19,14 @@ class Food < ApplicationRecord
   def self.find_or_create_by_name(name)
     return nil if name.blank?
 
+    find_or_initialize_by_name(name).tap { |food| food.save! if food.new_record? }
+  end
+
+  # Unsaved, so a caller that is about to set nutrition can do it in one write.
+  def self.find_or_initialize_by_name(name)
+    return nil if name.blank?
+
     where("lower(name) = ?", name.strip.downcase).first ||
-      create!(name: name.strip, source: "user_custom")
+      new(name: name.strip, source: "user_custom")
   end
 end
