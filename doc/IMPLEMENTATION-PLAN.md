@@ -106,6 +106,8 @@ Your volume, from §6: 2 people × ~5 entries/day × ~15s ≈ **75 minutes/month
 
 **Do the bake-off before writing any voice UI** (WP5.2). One real 20-second clip of one of you rambling about dinner, four providers, count the food nouns each one gets right. Free tiers cover this comfortably.
 
+**Add a fifth column: the phone keyboard's own dictation.** It logged the first four real meals on 2026-08-18 and got every food noun right, for free, so it is the baseline any paid provider has to beat — see WP5. Make the clip hard enough to actually separate them: a recipe name, a self-correction, kitchen noise.
+
 ---
 
 ## WP1 — Skeleton, auth, manual logging ✅ *done 2026-08-17*
@@ -266,6 +268,18 @@ Build in this order; each step is independently testable:
 
 **Done when:** a novel meal logs correctly from the chat, a follow-up correction ("make that double chicken") updates the same entry rather than creating a second one, and the whole suite passes with zero network calls. ✅ all three.
 
+### First real use, 2026-08-18 (evening)
+
+Deployed and used by both of us the same night. Doug logged a cheeseburger, a serving of fries, and a plate of IKEA meatballs; Raquel logged her own meatball plate in her own thread. Four entries, five tool calls, ~9,600 tokens across both conversations — about two cents.
+
+Three things the live run showed that the suite could not:
+
+- **The correction path works conversationally.** *"Modify the the meatballs recipe. I only ate about half a cup of mashed potatoes and maybe a half a cup of broccoli"* produced a single `update_meal` on the existing entry: 950 → 785 kcal, no second row, doubled "the the" absorbed without comment.
+- **The day-total fix holds.** 620 → 990 → 1940 → 1775 across the thread, every figure matching the tool's `day_total` exactly — including the *decrease* after the correction, which is the case most likely to tempt the model back into arithmetic.
+- **It hedges on its own initiative.** On the big plate: *"I'm flagging it low confidence since portions of mash and gravy swing a lot."* That is §2's argument working without being prompted for that specific dish.
+
+Caching behaves as designed in production: `cache_write=1875` once per conversation, `cache_read=1875` on every call after.
+
 **Deploying it needs one manual step.** `config/credentials.yml.enc` is a Capistrano `linked_file`, so production reads `shared/config/credentials.yml.enc` on das — the repo copy is not what runs. A key added locally has to be copied up before the first deploy that needs it:
 
 ```bash
@@ -333,9 +347,24 @@ Design refs: §7 path 2, §14.6. `BarcodeDetector` (native in Chrome on Android,
 
 ---
 
-## WP5 — Voice *(target: two evenings — the one you actually want)*
+## WP5 — Voice *(target: two evenings)*
 
 Design refs: §6, §14.4. **Goal: tap, ramble, done.**
+
+### The case for this package narrowed on 2026-08-18 — read this before starting
+
+All four of the first night's entries were dictated into the chat field with the phone keyboard's own mic, and every one came through clean. Gboard transcribed **"Ikea meatballs", "mashed potatoes", "gravy", "roasted broccoli", "mayo, mustard and ketchup"** correctly — precisely the food nouns §6 worried about and specified Deepgram's Keyterm Prompting to solve. It also handled a false start (*"Meatballs I ate six Ikea meatballs half a cup of…"*) that the model absorbed without comment, which is §9's transcript paragraph earning its place.
+
+So speech already works, at zero cost and zero engineering, and those entries are stamped `source: "text"` because as far as the app is concerned they were typed. **The header on this package used to read "the one you actually want." That is no longer the honest framing.** What WP5 still buys, stated plainly:
+
+1. **One tap instead of summoning a keyboard**, which is the actual friction when your hands are busy.
+2. **Hands-free while cooking** — dictation still needs you to tap into a text field first.
+3. **Vocabulary biasing that improves as `foods` grows.** This is the only one keyboard dictation can never match, and it's also the one with the least evidence behind it so far: n=4, all common foods. It will matter more for the WP4.5 recipe names than it does for a cheeseburger.
+4. **Keeping the audio** (§6), which is genuinely invaluable while tuning and is simply not available through the keyboard.
+
+**Two consequences for the bake-off in §2.** Keyboard dictation is now the baseline to beat, not a fallback — run the clip through it alongside the paid providers and require a provider to be *visibly* better before taking the dependency. And the clip should be a hard one: a recipe name, a mumble, a self-correction, background kitchen noise. Four clean sentences from a quiet room will not separate the candidates.
+
+None of this says don't build it. It says the reason to build it is ergonomics, and the plan should stop claiming it is the thing that makes voice possible.
 
 1. **`Stt::Client`** with the one-method interface from §6, plus `Stt::Hosted` and `Stt::Fake`. Faraday multipart for the upload.
 2. **Run the bake-off first, before writing the UI.** §17 asks for this and it's genuinely blocking: record one real 20-second clip of one of you rambling about dinner, run it through two or three providers, and pick on **food-noun accuracy**, not latency. Save the clip in `test/fixtures/files/` — it becomes your regression fixture forever.
@@ -401,8 +430,9 @@ WP1 skeleton+auth+manual ──▶ WP2 deploy+PWA ──▶ WP3 backups
                      WP6a pick + portion   (no AI, biggest win/hour)
                                    │
                                    ▼
-                            WP4 chat+tool loop ──▶ WP7 barcode ──▶ WP5 VOICE ◀── the point
-                                   │                                              of the project
+                            WP4 chat+tool loop ──▶ WP7 barcode ──▶ WP5 VOICE ◀── ergonomics,
+                                   │                                              not capability
+                                   │                                              (see WP5, 2026-08-18)
                                    ├──▶ WP4.5 recipe import (Drive) ──┐
                                    │                                  ▼
                                    ├──▶ WP6b repeat-meal matching (in chat)
