@@ -214,7 +214,23 @@ Design refs: §7 (path 1 and the household affordance), §14.5. Zero AI cost.
 
 **So the copy takes a portion.** Entries already carry `quantity_grams` alongside absolute macros, so scaling is `new_grams / original_grams`, applied to calories and all three macros. Where the source entry has no `quantity_grams`, fall back to a plain multiplier (½, 1, 1½, 2) — always offer the multiplier as well, because "half of what he had" is often the honest answer and nobody wants to weigh a bowl to answer it.
 
-### WP6a — pick and portion *(no AI, buildable now — and now the next one up, since WP4 landed first on 2026-08-18)*
+### WP6a — pick and portion ✅ *done 2026-08-18*
+
+**Result: 129 tests, 459 assertions, 0 failures. Rubocop clean.** `/repeats` lists what either of you logged in the last 30 days, deduplicated by food, newest first; tapping one opens a portion screen that defaults to the source's own weight; "For me" / "For \<name\>" writes the scaled copy. Three taps, no typing.
+
+**Scaling never rounds on write.** The plan's worked example — 360 g at 559 kcal logged as 180 g — stores 279.5 and renders "280" through the existing `calories` helper. That is what stops the macros drifting away from the calories: nothing is rounded before it is summed, so the macro-to-calorie ratio is preserved exactly at every factor (tested at 0.25×, 0.5×, 1.5× and 3×).
+
+**A resized copy rewrites its own assumptions.** "Assumed a pub-sized bowl" stops being true the moment it is halved, so a scaled copy is prefixed with "Portioned to 180g of Doug's entry." The original note is kept rather than dropped — it often carries composition ("no cheese or sour cream") that survives the resize even when the portion doesn't.
+
+**The live preview is verified by hand, not by CI — read this before trying again.** "Show the resulting calories live" only exists in the browser, so nothing server-side can see it. I built system tests for it (headless Chrome via the existing capybara/selenium gems) and then deleted them, because they were not dependable enough to keep: the whole file passed **2 runs in 6**.
+
+The failure is not in the app. Instrumenting the page showed the button in the right place, unobstructed, with `document.elementFromPoint` returning the button itself — and **no `pointerdown` and no `click` event reaching the document at all**. Selenium reports the click as successful and dispatches nothing. Per-test measurements over six runs each: a test that only types (`fill_in`) passed 5/6, a single click after a direct visit 6/6, a chip click 3/6, and a chip click followed by a submit 0/6. A larger viewport helped a little (3/6 → 5/6 on one test) which points at scroll-then-click, but never got the suite to reliable. Not resource exhaustion — one Chrome process, 26 GB free.
+
+So the live preview was checked the honest way: drive it, look at it. Tapping 0.5× on a 360 g / 559 kcal entry sets the field to 180 g and the preview to **280 kcal, 15gP 10gF 25gC** — the plan's worked example, on screen. If someone later gets browser tests stable on this machine, WP5 (recording) and WP7 (barcode) need them far more than this screen does; both are browser-only and neither can be covered any other way.
+
+**Not built, deliberately:** the per-entry "also log for \<name\>" button from §7. The picker covers both directions — after Doug logs dinner it is the newest household entry, so Raquel taps it from `/repeats` — and a second affordance for the same gesture is worth adding only if the picker turns out to be the wrong shape in daily use.
+
+### WP6a — original spec
 
 1. **A picker over recent household entries**, both people's, most recent first, deduplicated by food. This is the screen Raquel asked for: what got eaten lately, tap one.
 2. **Portion control on the way in** — grams if the source had grams, multiplier chips otherwise. Show the resulting calories live as it changes, so the number is confirmed before it's saved, not after.
@@ -225,6 +241,10 @@ Design refs: §7 (path 1 and the household affordance), §14.5. Zero AI cost.
 **Done when:** Raquel can log her share of a dinner Doug entered, at her own portion size, in three taps and no typing.
 
 ### WP6b — matching *(after WP4, uses the chat)*
+
+**Evidence from 2026-08-18 that raises the stakes here.** `Foods::EasyfitImport` now pulls hand-picked rows out of the old EasyFit Pro export into `foods` (Magic Juice is in: 81.13 kcal/100g, reconciled from the macros because the export's stated calories were 13% adrift). Asked for "a glass of magic juice", the chat **logged 150 kcal of mango juice** and created a second `foods` row — because nothing reads the table, and §9's instruction to infer a plausible dish from a garbled food name turned a known food into a typo. The instruction that makes dictation work is the one that overrode our own data.
+
+So this package is not only a cost optimisation. Until it lands, imported foods are worse than inert: the app will confidently rename them. Whatever else changes, retrieval has to run *before* the model gets a chance to guess at the name.
 
 1. `Food.match_or_create(name)` using `pg_trgm` similarity, scoped first to the household's last 90 days, then global `foods`. Tune the threshold against real data, not a guess.
 2. **Surface matches before inference runs** — "the usual chicken bowl — 780 cal?" is retrieval, not estimation.
