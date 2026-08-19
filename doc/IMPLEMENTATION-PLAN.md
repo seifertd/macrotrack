@@ -234,7 +234,7 @@ So the live preview was checked the honest way: drive it, look at it. Tapping 0.
 
 **Not built, deliberately:** the per-entry "also log for \<name\>" button from §7. The picker covers both directions — after Doug logs dinner it is the newest household entry, so Raquel taps it from `/repeats` — and a second affordance for the same gesture is worth adding only if the picker turns out to be the wrong shape in daily use.
 
-### WP6a — original spec
+### Original spec for WP6a, kept for the record
 
 1. **A picker over recent household entries**, both people's, most recent first, deduplicated by food. This is the screen Raquel asked for: what got eaten lately, tap one.
 2. **Portion control on the way in** — grams if the source had grams, multiplier chips otherwise. Show the resulting calories live as it changes, so the number is confirmed before it's saved, not after.
