@@ -93,6 +93,8 @@ module Foods
       food.update!(
         source: "user_custom",
         calories_per_100g: per_100g(stated_calories, serving_g),
+        serving_g: serving_g,
+        serving_label: serving_label(row),
         **scaled_macros(macros, macro_calories, stated_calories, serving_g)
       )
 
@@ -100,6 +102,18 @@ module Foods
         food: food, serving_g: serving_g, created: created,
         stated_calories: stated_calories, macro_calories: macro_calories
       )
+    end
+
+    # Storing the serving is what makes this import reversible. Every figure above is
+    # `value / serving_g * 100`, so without the divisor the stated per-serving calories —
+    # the number Doug actually crafted, and the one this importer now anchors on — could
+    # not be recovered from the row afterwards. It also means the portion screen can offer
+    # "1 serving" and land exactly on his number rather than near it.
+    def self.serving_label(row)
+      oz = row["serving_oz"].to_f
+      return nil unless oz.positive?
+
+      "#{format('%g', oz)} oz"
     end
 
     # Holds the export's protein:carb:fat ratio but rescales it so 4P+4C+9F lands on the

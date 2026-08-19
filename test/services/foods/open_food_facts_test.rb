@@ -69,6 +69,55 @@ class Foods::OpenFoodFactsTest < ActiveSupport::TestCase
     assert_nil stubbing("0070470496740" => product) { Foods::OpenFoodFacts.find("0070470496740") }
   end
 
+  test "captures the serving weight and the label it came from" do
+    product = YOGURT.deep_dup
+    product["product"]["serving_quantity"] = 115
+    product["product"]["serving_size"] = "0.5 cup (115 g)"
+
+    food = stubbing("0070470496740" => product) { Foods::OpenFoodFacts.find("0070470496740") }
+
+    assert_equal 115, food.serving_g.to_f
+    assert_equal "0.5 cup (115 g)", food.serving_label
+  end
+
+  test "a product that states no serving stays in grams" do
+    food = stubbing("0070470496740" => YOGURT) { Foods::OpenFoodFacts.find("0070470496740") }
+
+    assert_nil food.serving_g
+    assert_nil food.serving_label
+  end
+
+  test "a nonsense serving quantity is ignored rather than stored" do
+    product = YOGURT.deep_dup
+    product["product"]["serving_quantity"] = "unknown"
+
+    food = stubbing("0070470496740" => product) { Foods::OpenFoodFacts.find("0070470496740") }
+
+    assert_nil food.serving_g
+  end
+
+  test "refresh_serving fills in a row stored before the column existed" do
+    food = Food.create!(name: "Knudsen cottage cheese", barcode: "0070470496740",
+      source: "openfoodfacts", calories_per_100g: 93.22)
+    product = YOGURT.deep_dup
+    product["product"]["serving_quantity"] = 115
+    product["product"]["serving_size"] = "0.5 cup (115 g)"
+
+    stubbing("0070470496740" => product) { Foods::OpenFoodFacts.refresh_serving(food) }
+
+    assert_equal 115, food.reload.serving_g.to_f
+    assert_equal "0.5 cup (115 g)", food.serving_label
+    assert_equal 93.22, food.calories_per_100g.to_f, "nutrition is left alone"
+  end
+
+  test "refresh_serving leaves a row alone when upstream has no serving either" do
+    food = Food.create!(name: "Mystery", barcode: "0070470496740",
+      source: "openfoodfacts", calories_per_100g: 100)
+
+    assert_nil stubbing("0070470496740" => YOGURT) { Foods::OpenFoodFacts.refresh_serving(food) }
+    assert_nil food.reload.serving_g
+  end
+
   test "falls back to kilojoules when kcal is missing" do
     product = YOGURT.deep_dup
     product["product"]["nutriments"] = { "energy-kj_100g" => 515.0 }

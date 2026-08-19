@@ -4,7 +4,7 @@ Companion to `macro-tracker-design.md` (rev. 3). That doc says *what and why*; t
 
 Ordered so the app is on both phones by the end of WP2, sharing meals between the two of us by the end of WP6a, logging by conversation by the end of WP4, and logging by voice by the end of WP5.
 
-**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → **WP7** → WP4.5 → WP5 → WP8 → WP9 → WP10.
+**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → **WP7** → **WP7.5** → WP4.5 → WP5 → WP8 → WP9 → WP10.
 
 Numbers are stable identifiers, not sequence. Three packages have moved since the first draft — barcode ahead of voice, and repeat-meals ahead of everything else — and keeping their numbers means existing cross-references still resolve. The reordering rule has been the same each time: **whatever removes real friction soonest, for the least work.**
 
@@ -405,6 +405,33 @@ Two things that only showed up in real use:
 Design refs: §7 path 2, §14.6. `BarcodeDetector` (native in Chrome on Android, on-device, free) → OpenFoodFacts lookup → `foods` row with `source: "openfoodfacts"`. Ground truth, no inference. Include a manual-entry fallback for the products OpenFoodFacts doesn't have — it'll be more of them than you expect.
 
 **`BarcodeDetector` is Chrome-on-Android only** — it does not exist in Safari. Both phones in this household are Android (confirmed 2026-08-17), so **no JS fallback is needed**. Worth remembering only if the app ever reaches an iPhone, where the scan button would otherwise fail silently.
+
+---
+
+## WP7.5 — Servings ✅ *done 2026-08-19*
+
+**Added 2026-08-19, from one line of real evidence.** The first production scan logged 115g of cottage cheese, typed into the grams field rather than tapped from a preset. The write-up guessed the presets were wrong. They weren't: OpenFoodFacts states `serving_quantity: 115` and `serving_size: "0.5 cup (115 g)"` for that product, so Doug was entering **one serving** and the app had no idea what a serving was.
+
+**`foods` gains `serving_g` and `serving_label`, both nullable.** Grams stay canonical — everything resolves to grams before scaling, and grams are what land on `meal_entries.quantity_grams`. Servings are an *input* unit, offered only when the food knows what one weighs.
+
+**The real reason this is worth a migration is that it makes the per-100g conversion reversible.** Source data that is stated *per serving* — the EasyFit export, essentially every nutrition label — had to be divided by a weight to be stored, and the original figure could not be recovered afterwards. That lossiness is what made the EasyFit trust question feel like a one-way door: choosing which half to believe was irreversible. It isn't any more. `EasyfitImport` now keeps the divisor, and there is a test asserting Doug's own stated 163 kcal comes back out of the stored row.
+
+Where servings come from, in order of how much they can be trusted:
+
+| Source | Field | Notes |
+|---|---|---|
+| OpenFoodFacts | `serving_quantity` / `serving_size` | Off the label. Free, and already in the response — it only ever needed asking for |
+| EasyFit export | `serving_g` / `serving_oz` | The portion Doug crafted, which is the whole reason that corpus is worth importing |
+| Manual adopt form | typed | Optional; the screen says so |
+| Anything else | — | Stays in grams, exactly as before |
+
+**The screen adapts rather than branching.** With a serving weight, the default portion is one serving and the chips read ½ / 1 / 1½ / 2 servings; without one, it falls back to the 30/50/100/150/200g presets. `FoodPortion` hands the view a `reference_grams` and the figures at that reference, so the existing `portion` Stimulus controller drives both cases with no JS change — the same trick that let it drive WP6a's screen and WP7's.
+
+**One wrinkle worth knowing about:** `OpenFoodFacts.find` answers from our own table once a barcode is stored, which is the point of storing it — so re-scanning a product saved before this migration will *never* pick up its serving. `rake foods:backfill_servings` asks upstream again for exactly those rows.
+
+**204 tests, 0 failures, rubocop clean.**
+
+**Still in grams, deliberately:** the chat path. `log_meal`'s tool schema takes grams, and teaching the model to speak servings is a schema change plus a prompt change plus a new way for a tool call to be wrong. Worth doing only if it turns out to be missed.
 
 ---
 

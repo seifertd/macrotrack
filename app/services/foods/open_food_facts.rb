@@ -15,7 +15,7 @@ module Foods
 
     # v2 lets us name the fields, which keeps a ~50KB product document down to a few
     # hundred bytes. `nutriments` is one field containing all four numbers.
-    FIELDS = %w[ code product_name product_name_en brands nutriments ].freeze
+    FIELDS = %w[ code product_name product_name_en brands nutriments serving_size serving_quantity ].freeze
 
     # OpenFoodFacts asks that clients identify themselves and rate-limits anonymous
     # traffic harder. Two phones will never approach the limit, but being a good citizen
@@ -59,6 +59,19 @@ module Foods
 
         product = fetch(barcode) or return nil
         build(barcode, product)
+      end
+
+      # Ask upstream again for a row we already hold, and keep only the serving fields.
+      # `find` deliberately never does this — a known barcode is answered from our own
+      # table — so rows stored before `foods.serving_g` existed need an explicit nudge.
+      # Returns the food when it gained a serving, nil when upstream has none either.
+      def refresh_serving(food)
+        product = fetch(normalize(food.barcode)) or return nil
+        fields = serving(product)
+        return nil if fields.blank?
+
+        food.update!(**fields)
+        food
       end
 
       # Digits only. Scanners and humans both produce stray whitespace, and a leading
@@ -110,8 +123,22 @@ module Foods
             calories_per_100g: calories,
             protein_per_100g: nutriment(nutriments, "proteins"),
             carbs_per_100g: nutriment(nutriments, "carbohydrates"),
-            fat_per_100g: nutriment(nutriments, "fat")
+            fat_per_100g: nutriment(nutriments, "fat"),
+            **serving(product)
           )
+        end
+
+        # `serving_quantity` is the serving weight in grams; `serving_size` is the human
+        # string it came from ("0.5 cup (115 g)"), which is worth keeping because it names
+        # the unit the package actually uses. Plenty of products carry neither, and those
+        # simply stay in grams.
+        def serving(product)
+          grams = Float(product["serving_quantity"]).round(2)
+          return {} unless grams.positive?
+
+          { serving_g: grams, serving_label: product["serving_size"].presence }
+        rescue ArgumentError, TypeError
+          {}
         end
 
         # Brand first because that is how a packaged product is recognised on a shelf and

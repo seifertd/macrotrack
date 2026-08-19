@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_19_060000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_19_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -47,6 +47,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_19_060000) do
     t.string "name", null: false
     t.decimal "protein_per_100g", precision: 8, scale: 2
     t.jsonb "raw_ai_response"
+    t.decimal "serving_g", precision: 8, scale: 2
+    t.string "serving_label"
     t.string "source"
     t.datetime "updated_at", null: false
     t.index ["barcode"], name: "index_foods_on_barcode", unique: true, where: "(barcode IS NOT NULL)"

@@ -51,9 +51,48 @@ class ScansControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "h1", text: food.name
-    assert_select "input[name=grams][value=?]", FoodPortion::REFERENCE_GRAMS.to_s
+    assert_select "input[name=grams][value=?]", FoodPortion::PER.to_s
     assert_select "form[action=?]", log_scan_path(BARCODE)
     assert_select "input[type=submit][value=?]", "Log it"
+  end
+
+  test "a food that knows its serving defaults to one and offers fractions of it" do
+    serving_food
+
+    get scanned_path(BARCODE)
+
+    assert_response :success
+    # One serving, not 100g.
+    assert_select "input[name=grams][value=?]", "115"
+    assert_select "body", text: /1 serving = 115g/
+    assert_select "body", text: /0\.5 cup \(115 g\)/
+    assert_select "button", text: "\u00bd serving"
+    assert_select "button", text: "1\u00bd servings"
+  end
+
+  test "logging by servings lands the right grams on the entry" do
+    serving_food
+
+    post log_scan_path(BARCODE), params: { servings: 0.5 }
+
+    entry = @doug.meal_entries.order(:created_at).last
+    assert_equal 57.5, entry.quantity_grams.to_f
+    assert_in_delta 53.6, entry.calories.to_f, 0.05
+  end
+
+  test "the adopt form takes a serving so the next scan can offer one" do
+    get scanned_path("0000000000000")
+
+    assert_select "input[name=?]", "food[serving_g]"
+    assert_select "input[name=?]", "food[serving_label]"
+
+    post adopt_scan_path("0000000000000"), params: {
+      food: { name: "Store Brand Oats", calories_per_100g: 379, serving_g: 40, serving_label: "1/2 cup" }
+    }
+
+    food = Food.find_by(barcode: "0000000000000")
+    assert_equal 40, food.serving_g.to_f
+    assert_equal "1/2 cup", food.serving_label
   end
 
   test "an unknown barcode offers manual entry rather than a dead end" do
@@ -123,6 +162,12 @@ class ScansControllerTest < ActionDispatch::IntegrationTest
     # quietly — the point being that the row was answered from our own table.
     def offline!
       Foods::OpenFoodFacts.connection = stub_connection { raise "OpenFoodFacts was called" }
+    end
+
+    def serving_food
+      Food.create!(name: "Knudsen cottage cheese", barcode: BARCODE, source: "openfoodfacts",
+        calories_per_100g: 93.22, protein_per_100g: 9.32, carbs_per_100g: 5.08,
+        fat_per_100g: 4.24, serving_g: 115, serving_label: "0.5 cup (115 g)")
     end
 
     def known_food

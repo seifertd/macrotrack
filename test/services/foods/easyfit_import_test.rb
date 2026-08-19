@@ -51,6 +51,16 @@ class Foods::EasyfitImportTest < ActiveSupport::TestCase
     assert_equal 21.13, result.food.fat_per_100g.to_f
   end
 
+  test "keeps the serving, so the per-100g conversion is reversible" do
+    food = Foods::EasyfitImport.import("Magic Juice").sole.food
+
+    assert_equal 226.8, food.serving_g.to_f
+    assert_equal "8 oz", food.serving_label
+
+    recovered = food.calories_per_100g.to_f * food.serving_g.to_f / 100
+    assert_in_delta 163.0, recovered, 0.05, "Doug's own per-serving figure comes back out"
+  end
+
   test "re-running updates the existing row rather than duplicating it" do
     first = Foods::EasyfitImport.import("Magic Juice").sole
     assert first.created
