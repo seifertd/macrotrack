@@ -8,6 +8,22 @@ Rails.application.routes.draw do
   resources :repeats, only: %i[ index show ]
   post "repeats/:id" => "repeats#create", as: :log_repeat
 
+  # Scan a barcode and log a portion of what the label says (WP7). The barcode is the
+  # id here rather than a `foods` id: at scan time we may not have a row for it yet,
+  # and after the manual fallback the same URL has to keep working.
+  get "scan" => "scans#new", as: :scan
+
+  # Typed entry posts here rather than being intercepted in JS, so the fallback path
+  # does not itself depend on the scripting that just failed. "lookup" is not digits,
+  # so it can never collide with the :barcode routes below.
+  get "scan/lookup" => "scans#lookup", as: :lookup_scan
+
+  scope constraints: { barcode: /\d{6,14}/ } do
+    get "scan/:barcode" => "scans#show", as: :scanned
+    post "scan/:barcode" => "scans#create", as: :log_scan
+    post "scan/:barcode/food" => "scans#adopt", as: :adopt_scan
+  end
+
   # The chat is one thread per user, so it's a singular resource with no id in the URL.
   get "chat" => "chats#show", as: :chat
   post "chat/messages" => "chat_messages#create", as: :chat_messages

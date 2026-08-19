@@ -1,0 +1,66 @@
+<% content_for :title, "#{@food.name} — MacroTrack" %>
+
+<%= link_to "‹ Scan another", scan_path, class: "text-sm text-slate-500 underline hover:no-underline" %>
+
+<h1 class="mt-2 text-lg font-semibold"><%= @food.name %></h1>
+<p class="mt-0.5 text-sm text-slate-500">
+  <%= calories(@food.calories_per_100g) %> kcal per 100g
+  <% if @food.source == "openfoodfacts" %>· from the label<% else %>· entered by hand<% end %>
+</p>
+
+<%= form_with url: log_scan_path(@barcode), method: :post,
+      data: {
+        controller: "portion",
+        portion_calories_value: @food.calories_per_100g.to_f,
+        portion_protein_value: @food.protein_per_100g.to_f,
+        portion_fat_value: @food.fat_per_100g.to_f,
+        portion_carbs_value: @food.carbs_per_100g.to_f,
+        portion_grams_value: FoodPortion::REFERENCE_GRAMS
+      } do %>
+
+  <section class="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+    <label class="block text-sm font-medium" for="grams">How much did you have?</label>
+    <div class="mt-2 flex items-center gap-2">
+      <%= number_field_tag :grams, FoodPortion::REFERENCE_GRAMS, step: 1, min: 1, inputmode: "numeric",
+            class: "w-32 rounded-lg border border-slate-300 px-3 py-2 text-base tabular-nums focus:border-slate-500 focus:outline-none",
+            data: { portion_target: "grams", action: "input->portion#recalculate" } %>
+      <span class="text-sm text-slate-500">grams</span>
+    </div>
+
+    <%# Gram presets rather than multipliers: a package states a weight, so the useful
+        shortcut is "a small tub" not "half of what he had". %>
+    <div class="mt-3 flex flex-wrap gap-2">
+      <% FoodPortion::PRESETS.each do |preset| %>
+        <button type="button"
+                class="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium tabular-nums hover:bg-slate-100"
+                data-portion-target="chip"
+                data-multiplier="<%= preset.to_f / FoodPortion::REFERENCE_GRAMS %>"
+                data-action="portion#choose">
+          <%= preset %>g
+        </button>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="mt-3 rounded-xl border border-slate-200 bg-white p-4">
+    <div class="flex items-baseline justify-between">
+      <span class="text-sm text-slate-500">That's</span>
+      <div class="text-right">
+        <p class="text-2xl font-semibold tabular-nums">
+          <span data-portion-target="calories"><%= calories(@food.calories_per_100g) %></span>
+          <span class="text-sm font-normal text-slate-500">kcal</span>
+        </p>
+        <p class="text-xs tabular-nums text-slate-500">
+          <span data-portion-target="protein"><%= grams(@food.protein_per_100g) %></span>P
+          <span data-portion-target="fat"><%= grams(@food.fat_per_100g) %></span>F
+          <span data-portion-target="carbs"><%= grams(@food.carbs_per_100g) %></span>C
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <div class="mt-4">
+    <%= submit_tag "Log it",
+          class: "w-full cursor-pointer rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-700" %>
+  </div>
+<% end %>
