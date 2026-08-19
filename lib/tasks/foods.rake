@@ -26,4 +26,20 @@ namespace :foods do
   rescue Foods::EasyfitImport::UnknownFood, Foods::EasyfitImport::ImplausibleRow => e
     abort "#{e.class.name.demodulize}: #{e.message}"
   end
+
+  desc "Fill in serving weights for scanned foods imported before foods.serving_g existed"
+  task backfill_servings: :environment do
+    # `OpenFoodFacts.find` answers from our own table once a barcode is known, which is
+    # the point of storing it — so a re-scan will never pick up serving data for a row
+    # that predates the column. This asks upstream again, for those rows only.
+    stale = Food.where.not(barcode: nil).where(serving_g: nil)
+    puts "#{stale.count} scanned food(s) with no serving weight"
+
+    stale.find_each do |food|
+      fresh = Foods::OpenFoodFacts.refresh_serving(food)
+
+      puts fresh ? "  #{food.name}: 1 serving = #{fresh.serving_g}g (#{fresh.serving_label})"
+                 : "  #{food.name}: upstream states no serving — left in grams"
+    end
+  end
 end

@@ -8,6 +8,12 @@ class FoodPortionTest < ActiveSupport::TestCase
       carbs_per_100g: 16.9, fat_per_100g: 4.9)
   end
 
+  def serving_food
+    @serving_food ||= Food.create!(name: "Knudsen cottage cheese", barcode: "049900342643",
+      source: "openfoodfacts", calories_per_100g: 93.22, protein_per_100g: 9.32,
+      carbs_per_100g: 5.08, fat_per_100g: 4.24, serving_g: 115, serving_label: "0.5 cup (115 g)")
+  end
+
   test "100g is the reference, so it comes back as the per-100g figures" do
     scaled = FoodPortion.new(@yogurt, grams: 100).scaled
 
@@ -64,6 +70,64 @@ class FoodPortionTest < ActiveSupport::TestCase
     assert_equal "barcode", entry.source
     assert_equal 150, entry.quantity_grams.to_f
     assert_in_delta 184.5, entry.calories.to_f, 0.01
+  end
+
+  test "a food that knows its serving offers servings, not gram presets" do
+    portion = FoodPortion.new(serving_food)
+
+    assert portion.by_serving?
+    assert_equal 115, portion.reference_grams.to_f, "one serving is the default portion"
+    assert_equal [ "\u00bd serving", "1 serving", "1\u00bd servings", "2 servings" ],
+      portion.chips.map { |c| c[:label] }
+    assert_equal [ 0.5, 1.0, 1.5, 2.0 ], portion.chips.map { |c| c[:multiplier] }
+  end
+
+  test "a food without a serving falls back to gram presets" do
+    portion = FoodPortion.new(@yogurt)
+
+    assert_not portion.by_serving?
+    assert_equal 100, portion.reference_grams.to_f
+    assert_equal [ "30g", "50g", "100g", "150g", "200g" ], portion.chips.map { |c| c[:label] }
+  end
+
+  test "servings resolve against the serving weight" do
+    assert_equal 115, FoodPortion.new(serving_food, servings: 1).grams.to_f
+    assert_equal 57.5, FoodPortion.new(serving_food, servings: 0.5).grams.to_f
+    assert_equal 172.5, FoodPortion.new(serving_food, servings: 1.5).grams.to_f
+  end
+
+  test "half a serving is half the calories" do
+    full = FoodPortion.new(serving_food, servings: 1).scaled[:calories].to_f
+    half = FoodPortion.new(serving_food, servings: 0.5).scaled[:calories].to_f
+
+    assert_in_delta 107.2, full, 0.01, "93.22 kcal/100g over a 115g serving"
+    assert_in_delta full / 2, half, 0.01
+  end
+
+  test "grams win over servings, because they are the more specific answer" do
+    portion = FoodPortion.new(serving_food, grams: 200, servings: 1)
+
+    assert_equal 200, portion.grams.to_f
+  end
+
+  test "servings are ignored when the food has no serving weight to resolve them" do
+    portion = FoodPortion.new(@yogurt, servings: 2)
+
+    assert_equal 100, portion.grams.to_f, "better the reference than logging 2g"
+    assert_nil portion.servings
+  end
+
+  test "says what was eaten in the unit it was chosen in" do
+    assert_equal "1 serving", FoodPortion.new(serving_food, servings: 1).label
+    assert_equal "\u00bd serving", FoodPortion.new(serving_food, servings: 0.5).label
+    assert_equal "150g", FoodPortion.new(@yogurt, grams: 150).label
+  end
+
+  test "the entry still lands in grams, whatever unit it was said in" do
+    entry = FoodPortion.new(serving_food, servings: 0.5).log_for!(@doug)
+
+    assert_equal 57.5, entry.quantity_grams.to_f
+    assert_in_delta 53.6, entry.calories.to_f, 0.01
   end
 
   test "a barcode entry is not hedged the way an estimate is" do

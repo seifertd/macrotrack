@@ -45,7 +45,7 @@ class ScansController < ApplicationController
 
   def create
     food = Food.find_by!(barcode: @barcode)
-    portion = FoodPortion.new(food, grams: params[:grams])
+    portion = FoodPortion.new(food, grams: params[:grams], servings: params[:servings])
 
     return redirect_to scanned_path(@barcode), alert: "That portion didn't look right." unless portion.loggable?
 
@@ -76,6 +76,7 @@ class ScansController < ApplicationController
     end
 
     def food_params
-      params.require(:food).permit(:name, :calories_per_100g, :protein_per_100g, :carbs_per_100g, :fat_per_100g)
+      params.require(:food).permit(:name, :calories_per_100g, :protein_per_100g, :carbs_per_100g,
+        :fat_per_100g, :serving_g, :serving_label)
     end
 end

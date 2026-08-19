@@ -1,4 +1,5 @@
 <% content_for :title, "#{@food.name} — MacroTrack" %>
+<% base = @portion.reference_scaled %>
 
 <%= link_to "‹ Scan another", scan_path, class: "text-sm text-slate-500 underline hover:no-underline" %>
 
@@ -8,35 +9,44 @@
   <% if @food.source == "openfoodfacts" %>· from the label<% else %>· entered by hand<% end %>
 </p>
 
+<%# Named only when the food knows what a serving weighs. Without it there is nothing
+    honest to say, and "1 serving" would be a guess dressed as a fact. %>
+<% if @portion.by_serving? %>
+  <p class="mt-1 text-sm font-medium text-slate-700">
+    1 serving = <%= grams(@food.serving_g) %><% if @food.serving_label.present? %>
+    <span class="font-normal text-slate-500">(<%= @food.serving_label %>)</span><% end %>
+  </p>
+<% end %>
+
 <%= form_with url: log_scan_path(@barcode), method: :post,
       data: {
         controller: "portion",
-        portion_calories_value: @food.calories_per_100g.to_f,
-        portion_protein_value: @food.protein_per_100g.to_f,
-        portion_fat_value: @food.fat_per_100g.to_f,
-        portion_carbs_value: @food.carbs_per_100g.to_f,
-        portion_grams_value: FoodPortion::REFERENCE_GRAMS
+        portion_calories_value: base[:calories].to_f,
+        portion_protein_value: base[:protein_g].to_f,
+        portion_fat_value: base[:fat_g].to_f,
+        portion_carbs_value: base[:carbs_g].to_f,
+        portion_grams_value: @portion.reference_grams.to_f
       } do %>
 
   <section class="mt-4 rounded-xl border border-slate-200 bg-white p-4">
     <label class="block text-sm font-medium" for="grams">How much did you have?</label>
     <div class="mt-2 flex items-center gap-2">
-      <%= number_field_tag :grams, FoodPortion::REFERENCE_GRAMS, step: 1, min: 1, inputmode: "numeric",
+      <%= number_field_tag :grams, @portion.reference_grams.to_f.round, step: 1, min: 1, inputmode: "numeric",
             class: "w-32 rounded-lg border border-slate-300 px-3 py-2 text-base tabular-nums focus:border-slate-500 focus:outline-none",
             data: { portion_target: "grams", action: "input->portion#recalculate" } %>
       <span class="text-sm text-slate-500">grams</span>
     </div>
 
-    <%# Gram presets rather than multipliers: a package states a weight, so the useful
-        shortcut is "a small tub" not "half of what he had". %>
+    <%# Servings when the food has one, gram presets when it doesn't. Both set the grams
+        field, so it stays the single source of truth and can still be nudged after. %>
     <div class="mt-3 flex flex-wrap gap-2">
-      <% FoodPortion::PRESETS.each do |preset| %>
+      <% @portion.chips.each do |chip| %>
         <button type="button"
                 class="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium tabular-nums hover:bg-slate-100"
                 data-portion-target="chip"
-                data-multiplier="<%= preset.to_f / FoodPortion::REFERENCE_GRAMS %>"
+                data-multiplier="<%= chip[:multiplier] %>"
                 data-action="portion#choose">
-          <%= preset %>g
+          <%= chip[:label] %>
         </button>
       <% end %>
     </div>
@@ -47,13 +57,13 @@
       <span class="text-sm text-slate-500">That's</span>
       <div class="text-right">
         <p class="text-2xl font-semibold tabular-nums">
-          <span data-portion-target="calories"><%= calories(@food.calories_per_100g) %></span>
+          <span data-portion-target="calories"><%= calories(base[:calories]) %></span>
           <span class="text-sm font-normal text-slate-500">kcal</span>
         </p>
         <p class="text-xs tabular-nums text-slate-500">
-          <span data-portion-target="protein"><%= grams(@food.protein_per_100g) %></span>P
-          <span data-portion-target="fat"><%= grams(@food.fat_per_100g) %></span>F
-          <span data-portion-target="carbs"><%= grams(@food.carbs_per_100g) %></span>C
+          <span data-portion-target="protein"><%= grams(base[:protein_g]) %></span>P
+          <span data-portion-target="fat"><%= grams(base[:fat_g]) %></span>F
+          <span data-portion-target="carbs"><%= grams(base[:carbs_g]) %></span>C
         </p>
       </div>
     </div>
