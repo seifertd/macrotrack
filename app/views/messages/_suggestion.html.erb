@@ -1,0 +1,8 @@
+<%# The two answers to a retrieval hit. "Same again" logs it with no model call; the
+    other hands the turn over and costs a parse. %>
+<div class="mt-2 flex gap-2" id="<%= dom_id(message, :actions) %>">
+  <%= button_to "Same again", accept_chat_suggestion_path(message),
+        class: "rounded-full bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-700" %>
+  <%= button_to "No, work it out", decline_chat_suggestion_path(message),
+        class: "rounded-full border border-slate-300 bg-white px-4 py-1.5 text-xs font-medium hover:bg-slate-50" %>
+</div>

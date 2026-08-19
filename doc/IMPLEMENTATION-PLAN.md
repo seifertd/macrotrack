@@ -4,7 +4,7 @@ Companion to `macro-tracker-design.md` (rev. 3). That doc says *what and why*; t
 
 Ordered so the app is on both phones by the end of WP2, sharing meals between the two of us by the end of WP6a, logging by conversation by the end of WP4, and logging by voice by the end of WP5.
 
-**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → WP4.5 → **WP7** → WP5 → WP6b → WP8 → WP9 → WP10.
+**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → WP4.5 → **WP7** → WP5 → WP8 → WP9 → WP10.
 
 Numbers are stable identifiers, not sequence. Three packages have moved since the first draft — barcode ahead of voice, and repeat-meals ahead of everything else — and keeping their numbers means existing cross-references still resolve. The reordering rule has been the same each time: **whatever removes real friction soonest, for the least work.**
 
@@ -244,7 +244,23 @@ So the live preview was checked the honest way: drive it, look at it. Tapping 0.
 
 **Done when:** Raquel can log her share of a dinner Doug entered, at her own portion size, in three taps and no typing.
 
-### WP6b — matching *(after WP4, uses the chat)*
+### WP6b — matching ✅ *done 2026-08-19*
+
+**Result: 153 tests, 550 assertions, 0 failures. Rubocop clean.** Verified against the real API: "I had a glass of magic juice" — yesterday's failure — now logs **Magic Juice**, 194 kcal for a 240 ml glass, against the imported row, with the model's own note reading *"used your saved Magic Juice recipe (81 kcal/100g)"*. Our stored figure gives 195 for that volume.
+
+**Two mechanisms, because §7 asks for two different things.** A meal the household has eaten before is offered directly in the chat and logs on one tap with **no model call at all** (`source: "matched"`). Anything that does reach the model is given the household's closest foods and entries in the prompt first, below the cache breakpoint, so the model prefers what we already know over inventing a name.
+
+**Scoring: the greatest of three trigram measures.** Plain `similarity` collapses when a short food name sits inside a sentence — "Magic Juice" against "I had a glass of magic juice" scores 0.41. `word_similarity(name, text)` asks how well the name matches some run of words *inside* the sentence, which is the real question, and scores that pair 1.00. The reverse direction rescues the opposite case, a long stored name only partly spoken ("leftover ikea meatballs"). Best-of-three separated genuine matches (0.45 and up) from unrelated food (0.12 and below) across every pair tested.
+
+**It suggests; it does not log by itself. That is the finding, not a preference.** A correction is made of the same words as the thing it corrects, so it scores alarmingly well: *"make that double chicken"* hits **0.40** against *chicken burrito bowl*, and *"the pasta was bigger than that"* hits **0.35** against *Pasta with tomatoes*. The weakest genuine match measured 0.45. That is the entire margin, and no threshold separates the two cases because similarity is not what distinguishes them — conversational context is. Auto-logging on a threshold would therefore insert a whole extra meal in the middle of a correction, silently, in a calorie tracker. A misfire now costs an ignored card; a miss costs one API call, which is what today already costs. There is a regression test asserting that seven ordinary follow-ups stay under the bar.
+
+**Item 1 below was wrong and is not built.** It called for `Food.match_or_create` to merge rows by trigram similarity. Measured on real names, name-to-name similarity does **not** separate same-dish from different-dish: *"Pasta with tomatoes"* vs *"Burst Cherry Tomato Pasta"* (genuinely the same plate) scores **0.57**, while *"chicken burrito bowl"* vs *"beef burrito bowl"* scores **0.75** and *"porridge with honey"* vs *"porridge with berries"* scores **0.70**. Auto-merging would have quietly folded beef into chicken. Trigram similarity measures spelling, and spelling is a good proxy for "is this name in that sentence" but a bad one for "are these the same food". `match_or_create` stays an exact, case-insensitive match; retrieval stops the duplicates upstream instead, by answering before the model gets to invent a second name.
+
+**Hit rate is instrumented** — every message logs `meal match: hit|miss score= name= query=`, which is the number §17's pg_trgm-vs-pgvector question turns on. The threshold is a constant with the measured margins written next to it, because it was tuned against six real foods and wants revisiting once there are sixty.
+
+**Still open:** a food with nutrition but no entry (an import) can only be a hint, never a one-tap suggestion, because there is no portion to offer. Magic Juice logs correctly today via the model. Giving imports a portion screen of their own is WP4.5's problem, and it will have ~141 of them.
+
+#### The evidence that moved this up the order
 
 **Evidence from 2026-08-18 that raises the stakes here.** `Foods::EasyfitImport` now pulls hand-picked rows out of the old EasyFit Pro export into `foods` (Magic Juice is in: 81.13 kcal/100g, reconciled from the macros because the export's stated calories were 13% adrift). Asked for "a glass of magic juice", the chat **logged 150 kcal of mango juice** and created a second `foods` row — because nothing reads the table, and §9's instruction to infer a plausible dish from a garbled food name turned a known food into a typo. The instruction that makes dictation work is the one that overrode our own data.
 
@@ -454,12 +470,15 @@ WP1 skeleton+auth+manual ──▶ WP2 deploy+PWA ──▶ WP3 backups
                      WP6a pick + portion   (no AI, biggest win/hour)
                                    │
                                    ▼
-                            WP4 chat+tool loop ──▶ WP7 barcode ──▶ WP5 VOICE ◀── ergonomics,
-                                   │                                              not capability
-                                   │                                              (see WP5, 2026-08-18)
-                                   ├──▶ WP4.5 recipe import (Drive) ──┐
-                                   │                                  ▼
-                                   ├──▶ WP6b repeat-meal matching (in chat)
+                            WP4 chat+tool loop
+                                   │
+                                   ▼
+                     WP6b repeat-meal matching   (moved up 2026-08-19 — nothing
+                                   │              read the foods table, so imports
+                                   │              were worse than useless)
+                                   ▼
+                            WP4.5 recipe import (Drive) ──▶ WP7 barcode ──▶ WP5 VOICE ◀── ergonomics,
+                                   │                                                       not capability
                                    └──▶ WP8 weight+trends ──▶ WP9 calibration
                                                                   │
                                                             WP10 CSV export

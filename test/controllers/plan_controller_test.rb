@@ -56,10 +56,17 @@ class PlanControllerTest < ActionDispatch::IntegrationTest
 
     get "/plan"
 
-    labels = css_select(".toc__num").map(&:text)
+    source = PlanDocument::SOURCE.read
+    declared = source[PlanDocument::BUILD_ORDER, 1].scan(/WP(#{PlanDocument::PACKAGE_NUMBER})/o).flatten
+    heading_order = source.scan(/^\#{2,3}\s+WP(#{PlanDocument::PACKAGE_NUMBER})\s+—/o).flatten
 
-    assert_equal %w[ WP1 WP2 WP3 WP6a WP4 WP4.5 ], labels.first(6)
-    assert_operator labels.index("WP6b"), :>, labels.index("WP4.5"), "6b is scheduled after 4.5"
+    labels = css_select(".toc__num").map { |node| node.text.delete_prefix("WP") }
+
+    # Asserted against the document's own declaration rather than a copy of it, so
+    # reordering the plan doesn't fail this test — only disagreeing with it does.
+    assert_equal declared, labels.take(declared.size)
+    assert_not_equal declared, heading_order.take(declared.size),
+      "this test is only meaningful while the two actually differ"
   end
 
   # WP6 is a container for two halves with different states. Listing it as a package

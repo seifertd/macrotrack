@@ -19,6 +19,7 @@
     <div class="flex justify-start">
       <div class="max-w-[85%] rounded-2xl rounded-bl-sm bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm ring-1 ring-slate-200">
         <%= simple_format message.text, {}, sanitize: true %>
+        <%= render "messages/suggestion", message: message if message.suggestion? %>
       </div>
     </div>
   <% end %>

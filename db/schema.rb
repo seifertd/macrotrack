@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_18_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_19_060000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -86,10 +86,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_120000) do
     t.datetime "created_at", null: false
     t.string "input_source"
     t.string "role", null: false
+    t.bigint "suggested_meal_entry_id"
     t.integer "token_estimate"
     t.datetime "updated_at", null: false
     t.index ["conversation_id", "created_at"], name: "index_messages_on_conversation_id_and_created_at"
     t.index ["conversation_id"], name: "index_messages_on_conversation_id"
+    t.index ["suggested_meal_entry_id"], name: "index_messages_on_suggested_meal_entry_id"
   end
 
   create_table "sessions", force: :cascade do |t|
@@ -134,6 +136,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_120000) do
   add_foreign_key "meal_entries", "foods"
   add_foreign_key "meal_entries", "users"
   add_foreign_key "messages", "conversations"
+  add_foreign_key "messages", "meal_entries", column: "suggested_meal_entry_id"
   add_foreign_key "sessions", "users"
   add_foreign_key "users", "households"
   add_foreign_key "weight_entries", "users"

@@ -1,0 +1,5 @@
+<%= turbo_stream.remove dom_id(@message, :actions) %>
+
+<%= turbo_stream.replace "typing_indicator" do %>
+  <%= render "chats/typing_indicator", visible: true %>
+<% end %>
