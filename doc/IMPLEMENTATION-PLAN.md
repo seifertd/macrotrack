@@ -216,7 +216,11 @@ Design refs: §7 (path 1 and the household affordance), §14.5. Zero AI cost.
 
 ### WP6a — pick and portion ✅ *done 2026-08-18*
 
-**Result: 129 tests, 459 assertions, 0 failures. Rubocop clean.** `/repeats` lists what either of you logged in the last 30 days, deduplicated by food, newest first; tapping one opens a portion screen that defaults to the source's own weight; "For me" / "For \<name\>" writes the scaled copy. Three taps, no typing.
+**Result: 128 tests, 454 assertions, 0 failures. Rubocop clean.** `/repeats` lists what either of you logged in the last 30 days, deduplicated by food, newest first; tapping one opens a portion screen that defaults to the source's own weight; "Log it" writes the scaled copy onto your own day. Three taps, no typing.
+
+**Item 3 below is not built, and the spec was wrong.** It called for logging onto either person's day from the picker. Built that way and used for an evening, it was immediately the odd one out: the manual form logs to you, the chat's `log_meal` logs to you, and only this screen quietly offered to write onto somebody else's day. Raquel's actual request was *"let me pick from meals Doug already entered and say how much **I** ate"* — pick from anyone's plate, log onto your own. That is what ships.
+
+Writing to another person's day now has exactly one entry point: `copy_to_household_member` in the chat, where you have to name them. One deliberate route beats two, one of which is a button you might hit by accident. The `target_id` parameter is **removed** rather than validated — a parameter that doesn't exist cannot come back wrong in a later refactor.
 
 **Scaling never rounds on write.** The plan's worked example — 360 g at 559 kcal logged as 180 g — stores 279.5 and renders "280" through the existing `calories` helper. That is what stops the macros drifting away from the calories: nothing is rounded before it is summed, so the macro-to-calorie ratio is preserved exactly at every factor (tested at 0.25×, 0.5×, 1.5× and 3×).
 
@@ -234,7 +238,7 @@ So the live preview was checked the honest way: drive it, look at it. Tapping 0.
 
 1. **A picker over recent household entries**, both people's, most recent first, deduplicated by food. This is the screen Raquel asked for: what got eaten lately, tap one.
 2. **Portion control on the way in** — grams if the source had grams, multiplier chips otherwise. Show the resulting calories live as it changes, so the number is confirmed before it's saved, not after.
-3. **Log to either person from the same screen.** "For me" / "For \<name\>" rather than a copy that always means *the other one*, so it works the same whichever of you is holding the phone.
+3. ~~**Log to either person from the same screen.** "For me" / "For \<name\>" rather than a copy that always means *the other one*, so it works the same whichever of you is holding the phone.~~ **Dropped 2026-08-19** — see above. The screen works the same whoever holds the phone because you pick from the whole household and log onto yourself; it does not need to write to anyone else's day to do that.
 4. `source: "copied"` and `consumed_at` = now, per §7.
 5. **Scaling is the thing to test.** A 360 g entry at 559 kcal logged as 180 g must be 280 kcal, and rounding must not drift the macros away from the calories.
 
