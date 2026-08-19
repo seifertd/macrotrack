@@ -25,6 +25,18 @@ class User < ApplicationRecord
     household_members.find_by("lower(name) = ?", name.to_s.strip.downcase)
   end
 
+  # One chat thread per person, created on first use rather than at signup so the
+  # seeds don't have to know about it.
+  def conversation!
+    conversation || create_conversation!
+  end
+
+  # Feeds the MET burn calculation. Nil until WP8 puts a weight field on screen,
+  # which is why Met::Table takes a fallback rather than requiring this.
+  def latest_weight_kg
+    weight_entries.order(recorded_at: :desc).first&.weight_kg
+  end
+
   # Which local day a UTC timestamp belongs to. For a calorie tracker "what day was
   # this" is the product, so every rollup goes through here rather than Date.current.
   def local_date(at = Time.current)

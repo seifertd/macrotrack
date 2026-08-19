@@ -1,0 +1,14 @@
+<%# A failed tool is not rendered: the model reads the error and says something about
+    it in its next turn, which is a better explanation than anything this view could
+    invent from an exception message. %>
+<% next_entry = result["meal_entry_id"] %>
+<% if error %>
+<% elsif result["copied"] %>
+  <p class="px-1 text-xs text-slate-500">Also logged for <%= result["to"] %>.</p>
+<% elsif result["exercise_entry_id"] %>
+  <p class="px-1 text-xs text-slate-500">
+    Logged <%= result["calories_burned"].to_f.round %> kcal burned.
+  </p>
+<% elsif next_entry && (entry = user.meal_entries.find_by(id: next_entry)) %>
+  <%= render "messages/entry_card", entry: entry, user: user, updated: result["updated"].present? %>
+<% end %>

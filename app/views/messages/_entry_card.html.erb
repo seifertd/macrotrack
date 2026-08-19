@@ -1,0 +1,37 @@
+<div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+  <div class="flex items-baseline justify-between gap-3">
+    <div class="min-w-0">
+      <p class="truncate font-medium"><%= entry.display_name %></p>
+      <p class="mt-0.5 text-xs text-slate-500">
+        <%= updated ? "Updated" : "Logged" %>
+        · <%= entry.consumed_at.in_time_zone(user.timezone).strftime("%-l:%M %p").downcase %>
+        <% if entry.meal_type.present? %>· <%= entry.meal_type %><% end %>
+        <% if entry.quantity_grams.present? %>· <%= grams(entry.quantity_grams) %><% end %>
+      </p>
+    </div>
+    <div class="shrink-0 text-right">
+      <p class="font-semibold tabular-nums"><%= calories(entry.calories) %></p>
+      <p class="text-xs tabular-nums text-slate-500">
+        <%= grams(entry.protein_g) %>P <%= grams(entry.fat_g) %>F <%= grams(entry.carbs_g) %>C
+      </p>
+    </div>
+  </div>
+
+  <%# Surface uncertainty rather than hiding it (design §2). %>
+  <% if entry.confidence.present? || entry.assumptions.present? %>
+    <div class="mt-2 flex items-start gap-2">
+      <% if entry.confidence.present? %>
+        <span class="rounded px-1.5 py-0.5 text-xs font-medium <%= confidence_badge_classes(entry.confidence) %>">
+          <%= entry.confidence %>
+        </span>
+      <% end %>
+      <% if entry.assumptions.present? %>
+        <p class="text-xs text-slate-500"><%= entry.assumptions %></p>
+      <% end %>
+    </div>
+  <% end %>
+
+  <div class="mt-2 text-xs">
+    <%= link_to "Edit", edit_meal_entry_path(entry), class: "text-slate-500 underline hover:no-underline" %>
+  </div>
+</div>

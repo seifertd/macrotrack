@@ -4,6 +4,10 @@ Rails.application.routes.draw do
 
   resources :meal_entries, except: %i[ index show ]
 
+  # The chat is one thread per user, so it's a singular resource with no id in the URL.
+  get "chat" => "chats#show", as: :chat
+  post "chat/messages" => "chat_messages#create", as: :chat_messages
+
   get "days/:date", to: "days#show", as: :day, constraints: { date: /\d{4}-\d{2}-\d{2}/ }
   root "days#show"
 
