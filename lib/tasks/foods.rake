@@ -15,11 +15,12 @@ namespace :foods do
       puts "#{result.created ? 'created' : 'updated'}  #{food.name}"
       puts "          #{food.calories_per_100g} kcal/100g  " \
            "P#{food.protein_per_100g} C#{food.carbs_per_100g} F#{food.fat_per_100g}"
-      puts "          serving in the export: #{result.serving_g.round}g = #{result.macro_calories.round} kcal"
+      puts "          serving in the export: #{result.serving_g.round}g = #{result.stated_calories.round} kcal"
 
-      if result.calorie_gap_percent > 5
-        puts "          note: the export stated #{result.stated_calories.round} kcal for that serving, " \
-             "#{result.calorie_gap_percent}% off the macros. Using the macros."
+      if result.macros_suspect?
+        puts "          note: the macros add up to #{result.macro_calories.round} kcal for that serving, " \
+             "#{result.calorie_gap_percent}% off the stated #{result.stated_calories.round}. Calories are " \
+             "from the stated figure; the P/C/F split is rescaled to match but is worth a look."
       end
     end
   rescue Foods::EasyfitImport::UnknownFood, Foods::EasyfitImport::ImplausibleRow => e
