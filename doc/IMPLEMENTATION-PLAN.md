@@ -4,7 +4,7 @@ Companion to `macro-tracker-design.md` (rev. 3). That doc says *what and why*; t
 
 Ordered so the app is on both phones by the end of WP2, sharing meals between the two of us by the end of WP6a, logging by conversation by the end of WP4, and logging by voice by the end of WP5.
 
-**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → WP4.5 → **WP7** → WP5 → WP8 → WP9 → WP10.
+**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → **WP7** → WP4.5 → WP5 → WP8 → WP9 → WP10.
 
 Numbers are stable identifiers, not sequence. Three packages have moved since the first draft — barcode ahead of voice, and repeat-meals ahead of everything else — and keeping their numbers means existing cross-references still resolve. The reordering rule has been the same each time: **whatever removes real friction soonest, for the least work.**
 
@@ -379,9 +379,21 @@ These are the irreplaceable ones — family recipe cards whose only digital copy
 
 ---
 
-## WP7 — Barcode *(target: one evening)* — **built here, before WP5**
+## WP7 — Barcode ✅ *done 2026-08-19*
 
-**Moved ahead of voice on 2026-08-17.** Keeps its number so existing references still resolve; only the build order changed. The reason is §6's own principle — prefer ground truth wherever it exists. A packaged product like "a Oui black cherry yogurt, 5 oz" is a label to *read*, not a description to infer from: scanning it is exact and free, while an AI estimate of the same words is a guess that can be off by 20%. It's also one evening's work against voice's two, and it makes every packaged snack accurate before the harder paths land.
+**Moved ahead of WP4.5 on 2026-08-19**, for the third application of the same rule that moved WP6a and then WP7 itself: one evening against WP4.5's several sittings, and WP4.5 had quietly grown a portion screen for ~141 imports since it was written. The two are independent — WP4.5's only stated dependency is WP4, which was already done — so nothing was blocked either way.
+
+**What shipped.** `Foods::OpenFoodFacts` (barcode → `foods` row, no key, no account), `FoodPortion` (per-100g → an entry of a given weight), `ScansController` with three screens, and a `barcode` Stimulus controller driving `BarcodeDetector`. **37 new tests; 187 suite-wide, 0 failures, rubocop clean.**
+
+Three things worth recording:
+
+- **`FoodPortion` is a sibling of `MealPortion`, not a reuse of it.** `MealPortion` scales one *entry* onto another person's day and needs a plate someone already ate; a scan has a density and a tub, with no "what he had" to take half of. They share arithmetic shape deliberately, so the existing `portion` Stimulus controller drives both screens with no branching — pass 100 as the reference grams and the per-100g figures as the base. **This is the object WP4.5's portion screen wants**, which closes WP6b's still-open item: an imported food can now be offered a portion.
+- **The manual fallback saves the barcode.** A product OpenFoodFacts doesn't have is entered once, against that number, so the next scan of the same tub — by either phone — resolves offline. Without that, a coverage gap would be a permanent dead end rather than a one-time cost.
+- **The typed-number form is a plain server-rendered GET**, not JS-intercepted. It is the fallback for a browser without `BarcodeDetector` or with the camera refused, so routing it through JS would make the fallback depend on the thing that just failed.
+
+**Not covered by tests, and it can't be:** the camera path itself — `BarcodeDetector`, `getUserMedia`, the detect loop. Browser-only, and this is the package the plan already flagged as needing browser tests more than any screen WP6a built. **It needs a real scan on a real Android phone before it counts as verified.** Everything server-side of the detection — lookup, mapping, kJ fallback, the miss branches, portion maths, adoption — is covered.
+
+**The original case for building it, from 2026-08-17.** Keeps its number so existing references still resolve; only the build order changed. The reason is §6's own principle — prefer ground truth wherever it exists. A packaged product like "a Oui black cherry yogurt, 5 oz" is a label to *read*, not a description to infer from: scanning it is exact and free, while an AI estimate of the same words is a guess that can be off by 20%. It's also one evening's work against voice's two, and it makes every packaged snack accurate before the harder paths land.
 
 Design refs: §7 path 2, §14.6. `BarcodeDetector` (native in Chrome on Android, on-device, free) → OpenFoodFacts lookup → `foods` row with `source: "openfoodfacts"`. Ground truth, no inference. Include a manual-entry fallback for the products OpenFoodFacts doesn't have — it'll be more of them than you expect.
 
@@ -479,8 +491,9 @@ WP1 skeleton+auth+manual ──▶ WP2 deploy+PWA ──▶ WP3 backups
                                    │              read the foods table, so imports
                                    │              were worse than useless)
                                    ▼
-                            WP4.5 recipe import (Drive) ──▶ WP7 barcode ──▶ WP5 VOICE ◀── ergonomics,
-                                   │                                                       not capability
+                            WP7 barcode ──▶ WP4.5 recipe import (Drive) ──▶ WP5 VOICE ◀── ergonomics,
+                                   │        (moved 2026-08-19: one evening                  not capability
+                                   │         against several sittings)
                                    └──▶ WP8 weight+trends ──▶ WP9 calibration
                                                                   │
                                                             WP10 CSV export

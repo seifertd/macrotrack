@@ -68,6 +68,14 @@
   <span class="text-sm text-slate-300">Just say what you ate →</span>
 <% end %>
 
+<%# Ahead of the repeat picker because design §6 orders the paths that way: a label is
+    ground truth, a previous entry is only as good as the entry it came from. %>
+<%= link_to scan_path,
+      class: "mt-2 flex items-center justify-between rounded-xl border border-slate-300 bg-white px-4 py-3" do %>
+  <span class="font-semibold">Scan a barcode</span>
+  <span class="text-sm text-slate-500">Straight off the label →</span>
+<% end %>
+
 <%= link_to repeats_path,
       class: "mt-2 flex items-center justify-between rounded-xl border border-slate-300 bg-white px-4 py-3" do %>
   <span class="font-semibold">Repeat a meal</span>
