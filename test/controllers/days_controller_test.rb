@@ -68,6 +68,24 @@ class DaysControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Newest first: the entry you just logged is the one you want to look at, so it
+  # belongs at the top of the list rather than at the bottom of the day.
+  test "a day lists its entries newest first" do
+    user = users(:doug)
+    sign_in_as user
+
+    date = Date.new(2026, 8, 18)
+    noon = Time.use_zone(user.timezone) { Time.zone.parse("#{date} 12:00") }
+    user.meal_entries.create!(source: "manual", consumed_at: noon, raw_input: "earlier lunch")
+    user.meal_entries.create!(source: "manual", consumed_at: noon + 3.hours, raw_input: "later snack")
+
+    get day_path(date)
+
+    assert_response :success
+    names = css_select("li p.font-medium").map { |node| node.text.strip }
+    assert_equal [ "later snack", "earlier lunch" ], names
+  end
+
   # The route constraint only checks the shape, so a well-formed nonsense date still
   # reaches the controller. It should land on today rather than 500.
   test "an unparseable date falls back to today rather than erroring" do

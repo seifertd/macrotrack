@@ -18,6 +18,9 @@ class MealEntry < ApplicationRecord
     numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   scope :chronological, -> { order(:consumed_at) }
+  # The day page reads newest first: the thing you just logged is the thing you want
+  # to check, and it should be at the top rather than at the bottom of the day.
+  scope :reverse_chronological, -> { order(consumed_at: :desc, id: :desc) }
 
   # What the household has eaten lately, newest first — the pool the repeat picker draws
   # from. Scoped to the household rather than the user because the whole point is picking
