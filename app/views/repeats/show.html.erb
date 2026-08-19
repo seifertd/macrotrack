@@ -1,5 +1,4 @@
 <% content_for :title, "#{@source.display_name} — MacroTrack" %>
-<% members = @user.household_members %>
 
 <%= link_to "‹ Back", repeats_path, class: "text-sm text-slate-500 underline hover:no-underline" %>
 
@@ -67,14 +66,8 @@
     </div>
   </section>
 
-  <div class="mt-4 flex flex-col gap-2">
-    <%# A button rather than submit_tag: the label and the submitted value differ, and
-        submit_tag ties them together. %>
-    <%= button_tag "For me", type: :submit, name: "target_id", value: @user.id,
-          class: "w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-700" %>
-    <% members.each do |member| %>
-      <%= button_tag "For #{member.name}", type: :submit, name: "target_id", value: member.id,
-            class: "w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold hover:bg-slate-50" %>
-    <% end %>
+  <div class="mt-4">
+    <%= submit_tag "Log it",
+          class: "w-full cursor-pointer rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-700" %>
   </div>
 <% end %>

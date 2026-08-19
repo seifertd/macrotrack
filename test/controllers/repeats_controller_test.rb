@@ -59,15 +59,26 @@ class RepeatsControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", { text: /ancient/, count: 0 }
   end
 
-  test "the portion screen offers both people and defaults to the source portion" do
+  test "the portion screen defaults to the source portion" do
     source = log(@partner, "their dinner", quantity_grams: 360, calories: 559)
 
     get repeat_path(source)
 
     assert_response :success
     assert_select "input[name=grams][value=?]", "360"
-    assert_select "button[name=target_id][value=?]", @doug.id.to_s, text: "For me"
-    assert_select "button[name=target_id][value=?]", @partner.id.to_s, text: "For Partner"
+    assert_select "input[type=submit][value=?]", "Log it"
+  end
+
+  # You can pick from anyone's plate in the household; you can only log onto your own.
+  # The chat's copy_to_household_member is the one place another person's day can be
+  # written to, and it makes you name them.
+  test "the portion screen offers no way to log onto somebody else's day" do
+    source = log(@partner, "their dinner", quantity_grams: 360, calories: 559)
+
+    get repeat_path(source)
+
+    assert_select "[name=target_id]", count: 0
+    assert_select "input[type=submit]", count: 1
   end
 
   test "an unweighed source offers multipliers instead of a grams field" do
@@ -79,11 +90,11 @@ class RepeatsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name=multiplier]", count: 1
   end
 
-  test "logging a half portion to myself writes a scaled copy" do
+  test "logging a half portion writes a scaled copy onto my day" do
     source = log(@partner, "their dinner", quantity_grams: 360, calories: 559, protein_g: 30)
 
     assert_difference -> { @doug.meal_entries.count }, 1 do
-      post log_repeat_path(source), params: { grams: 180, target_id: @doug.id }
+      post log_repeat_path(source), params: { grams: 180 }
     end
 
     entry = @doug.meal_entries.order(:id).last
@@ -93,34 +104,18 @@ class RepeatsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to day_path(@doug.local_today)
   end
 
-  test "logging for the other person writes to their day, not mine" do
-    source = log(@doug, "my dinner", quantity_grams: 400, calories: 800)
+  # A stray or forged target_id must not be able to steer the write. The parameter is
+  # gone rather than validated, which is the version that cannot come back wrong.
+  test "a target_id in the params changes nothing" do
+    source = log(@partner, "their dinner", quantity_grams: 400, calories: 800)
 
-    assert_difference -> { @partner.meal_entries.count }, 1 do
-      assert_no_difference -> { @doug.meal_entries.count } do
+    assert_no_difference -> { @partner.meal_entries.count } do
+      assert_difference -> { @doug.meal_entries.count }, 1 do
         post log_repeat_path(source), params: { grams: 200, target_id: @partner.id }
       end
     end
 
-    assert_equal 400.0, @partner.meal_entries.order(:id).last.calories.to_f
-  end
-
-  test "cannot log into somebody outside the household" do
-    source = log(@doug, "my dinner", quantity_grams: 400, calories: 800)
-
-    assert_no_difference -> { users(:neighbor).meal_entries.count } do
-      post log_repeat_path(source), params: { grams: 200, target_id: users(:neighbor).id }
-    end
-
-    assert_response :not_found
-  end
-
-  test "no target means me, so a stray submit cannot land on the wrong day" do
-    source = log(@partner, "their dinner", quantity_grams: 360, calories: 559)
-
-    assert_difference -> { @doug.meal_entries.count }, 1 do
-      post log_repeat_path(source), params: { grams: 180 }
-    end
+    assert_equal 0, users(:neighbor).meal_entries.count
   end
 
   private
