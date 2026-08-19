@@ -3,12 +3,19 @@ require "csv"
 module Foods
   # Pulls selected rows out of the EasyFit Pro export into `foods`.
   #
-  # Selected, not all of it. The export's serving weights are mostly not measurements:
-  # 110 of 123 sit on a whole or half ounce and 48 are exactly 8 oz, which is the old
-  # app's default rather than anything anyone weighed. Since `foods` is per-100g, every
-  # value here is calories ÷ serving_g — so a defaulted weight yields a confidently wrong
-  # density with nothing on the row to flag it. Importing by hand-picked name keeps a
-  # person in the loop for the only judgement that matters: is this serving weight real?
+  # Selected, not all of it. Every value here is divided by `serving_g` to reach the
+  # per-100g shape `foods` wants, so a serving weight that was never real yields a
+  # confidently wrong density with nothing on the row to flag it. Importing by
+  # hand-picked name keeps a person in the loop.
+  #
+  # **The stated calories are the anchor, not the macros.** This reverses the original
+  # call, which derived calories from 4P+4C+9F and discarded the export's own figure.
+  # Doug crafted each serving to be the portion he actually eats and the calories he
+  # believed it cost him; the macros came off a calculator and are the softer number.
+  # Measured across all 123 rows the two mostly agree — median macro/stated ratio 1.004,
+  # 104 rows within 10% — so this changes little in aggregate, but where they diverge
+  # the stated figure is the one to keep. Magic Juice was stored at 81.13 kcal/100g
+  # under the old rule and is 71.87 under this one, 12.9% lower.
   class EasyfitImport
     PATH = Rails.root.join("db/seeds/easyfit_foods.csv")
 
@@ -16,18 +23,28 @@ module Foods
     # ~15 and you are looking at a weight that swallowed the calories.
     PLAUSIBLE_DENSITY = (15.0..900.0)
 
+    # Past this gap between the stated calories and what the macros add up to, the macro
+    # split is not trustworthy. It does *not* impugn the calorie figure — that is taken
+    # from the export directly — so this warns rather than raises. Blocking here would
+    # withhold a good calorie number over a questionable protein/carb/fat breakdown, and
+    # in a calorie tracker that is the wrong trade. 19 of 123 rows sit outside it.
+    MACRO_GAP_TOLERANCE = 10.0
+
     class ImplausibleRow < StandardError; end
     class UnknownFood < StandardError; end
 
     Imported = Struct.new(:food, :serving_g, :stated_calories, :macro_calories, :created, keyword_init: true) do
-      # The export's stated calories and its macros disagree by up to 13%. Doug's call is
-      # that the macros are the trustworthy half — they came off a recipe calculator,
-      # where the stated figure went through a guessed serving fraction. Worth surfacing
-      # per row so a big gap gets a second look rather than being averaged into the table.
+      # How far the export's macros drift from its own stated calories, as a percentage
+      # of the stated figure. Surfaced per row so a big gap gets a second look.
       def calorie_gap_percent
         return 0.0 if stated_calories.to_f.zero?
 
         ((macro_calories - stated_calories).abs / stated_calories * 100).round(1)
+      end
+
+      # The calories are still right when this is true; only the split is doubtful.
+      def macros_suspect?
+        calorie_gap_percent > MACRO_GAP_TOLERANCE
       end
     end
 
@@ -55,12 +72,15 @@ module Foods
 
     def self.import_row(row)
       serving_g = row["serving_g"].to_f
+      stated_calories = row["calories_kcal"].to_f
       macros = { protein: row["protein_g"].to_f, carbs: row["carbs_g"].to_f, fat: row["fat_g"].to_f }
       macro_calories = macros[:protein] * 4 + macros[:carbs] * 4 + macros[:fat] * 9
 
       raise ImplausibleRow, "#{row['name']}: serving_g is #{serving_g}" unless serving_g.positive?
+      raise ImplausibleRow, "#{row['name']}: calories_kcal is #{stated_calories}" unless stated_calories.positive?
 
-      density = macro_calories / serving_g * 100
+      # Checked against the stated calories, since those are what the row now claims.
+      density = stated_calories / serving_g * 100
       unless PLAUSIBLE_DENSITY.cover?(density)
         raise ImplausibleRow,
           "#{row['name']}: #{density.round} kcal/100g is outside #{PLAUSIBLE_DENSITY} — " \
@@ -72,16 +92,28 @@ module Foods
 
       food.update!(
         source: "user_custom",
-        calories_per_100g: per_100g(macro_calories, serving_g),
-        protein_per_100g: per_100g(macros[:protein], serving_g),
-        carbs_per_100g: per_100g(macros[:carbs], serving_g),
-        fat_per_100g: per_100g(macros[:fat], serving_g)
+        calories_per_100g: per_100g(stated_calories, serving_g),
+        **scaled_macros(macros, macro_calories, stated_calories, serving_g)
       )
 
       Imported.new(
         food: food, serving_g: serving_g, created: created,
-        stated_calories: row["calories_kcal"].to_f, macro_calories: macro_calories
+        stated_calories: stated_calories, macro_calories: macro_calories
       )
+    end
+
+    # Holds the export's protein:carb:fat ratio but rescales it so 4P+4C+9F lands on the
+    # stated calories. Rounding to two places leaves the reconstructed total a hundredth
+    # or so off the stored calorie figure; `calories_per_100g` is the authority, and the
+    # macros are shaped to agree with it rather than the other way round.
+    def self.scaled_macros(macros, macro_calories, stated_calories, serving_g)
+      scale = stated_calories / macro_calories
+
+      {
+        protein_per_100g: per_100g(macros[:protein] * scale, serving_g),
+        carbs_per_100g: per_100g(macros[:carbs] * scale, serving_g),
+        fat_per_100g: per_100g(macros[:fat] * scale, serving_g)
+      }
     end
 
     def self.per_100g(value, serving_g)
