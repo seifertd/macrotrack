@@ -11,45 +11,55 @@
 <% today = date == user.local_today %>
 
 <header id="header_strip" class="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur">
-  <%= link_to day_path(user.local_today), class: "block px-4 py-2.5" do %>
-    <div class="flex items-baseline justify-between">
-      <div>
-        <span class="text-2xl font-semibold tabular-nums"><%= calories(totals[:calories]) %></span>
-        <span class="text-sm text-slate-500">/ <%= calories(user.daily_calorie_target) %> kcal</span>
+  <div class="flex items-center gap-3 px-4 py-2.5">
+    <%= link_to day_path(user.local_today), class: "block min-w-0 flex-1" do %>
+      <div class="flex items-baseline justify-between">
+        <div>
+          <span class="text-2xl font-semibold tabular-nums"><%= calories(totals[:calories]) %></span>
+          <span class="text-sm text-slate-500">/ <%= calories(user.daily_calorie_target) %> kcal</span>
+        </div>
+        <div class="flex items-baseline gap-2 text-sm">
+          <%# Say which day these numbers are, whenever they aren't today's. %>
+          <% unless today %>
+            <span class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
+              <%= date.strftime("%-d %b") %>
+            </span>
+          <% end %>
+          <span class="tabular-nums <%= remaining.negative? ? "text-rose-600" : "text-slate-500" %>">
+            <%= remaining.negative? ? "#{calories(remaining.abs)} over" : "#{calories(remaining)} left" %>
+          </span>
+        </div>
       </div>
-      <div class="flex items-baseline gap-2 text-sm">
-        <%# Say which day these numbers are, whenever they aren't today's. %>
-        <% unless today %>
-          <span class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
-            <%= date.strftime("%-d %b") %>
+
+      <div class="mt-2 flex h-5 overflow-hidden rounded bg-slate-200 text-[10px] font-semibold text-white">
+        <% breakdown.each do |macro| %>
+          <div class="flex items-center justify-center <%= macro[:color] %>"
+               style="width: <%= macro[:share] %>%"
+               title="<%= macro[:label] %>: <%= grams(macro[:grams]) %>, <%= macro[:share] %>% of calories">
+            <% if macro[:share] >= ApplicationHelper::LABEL_THRESHOLD %>
+              <%= macro[:letter] %>&nbsp;<%= macro[:share] %>%
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+
+      <div class="mt-1.5 flex items-center gap-3 text-xs text-slate-500">
+        <% breakdown.each do |macro| %>
+          <span class="flex items-center gap-1.5">
+            <span class="h-2 w-2 shrink-0 rounded-full <%= macro[:color] %>"></span>
+            <%= macro[:label] %>
+            <span class="font-medium tabular-nums text-slate-700"><%= grams(macro[:grams]) %></span>
           </span>
         <% end %>
-        <span class="tabular-nums <%= remaining.negative? ? "text-rose-600" : "text-slate-500" %>">
-          <%= remaining.negative? ? "#{calories(remaining.abs)} over" : "#{calories(remaining)} left" %>
-        </span>
       </div>
-    </div>
+    <% end %>
 
-    <div class="mt-2 flex h-5 overflow-hidden rounded bg-slate-200 text-[10px] font-semibold text-white">
-      <% breakdown.each do |macro| %>
-        <div class="flex items-center justify-center <%= macro[:color] %>"
-             style="width: <%= macro[:share] %>%"
-             title="<%= macro[:label] %>: <%= grams(macro[:grams]) %>, <%= macro[:share] %>% of calories">
-          <% if macro[:share] >= ApplicationHelper::LABEL_THRESHOLD %>
-            <%= macro[:letter] %>&nbsp;<%= macro[:share] %>%
-          <% end %>
-        </div>
-      <% end %>
-    </div>
-
-    <div class="mt-1.5 flex items-center gap-3 text-xs text-slate-500">
-      <% breakdown.each do |macro| %>
-        <span class="flex items-center gap-1.5">
-          <span class="h-2 w-2 shrink-0 rounded-full <%= macro[:color] %>"></span>
-          <%= macro[:label] %>
-          <span class="font-medium tabular-nums text-slate-700"><%= grams(macro[:grams]) %></span>
-        </span>
-      <% end %>
-    </div>
-  <% end %>
+    <%# Adding has to stay reachable however long the day's list gets, and the strip is
+        already pinned, so it costs no screen height that wasn't already spent. Carries
+        the day on screen, not today. Hidden on the screen it leads to. %>
+    <% unless add_screen? %>
+      <%= link_to "+ Add", new_meal_entry_path(date: date),
+            class: "shrink-0 rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-semibold text-white hover:bg-slate-700" %>
+    <% end %>
+  </div>
 </header>
