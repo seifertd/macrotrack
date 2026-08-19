@@ -1,0 +1,30 @@
+<% content_for :title, "Chat — MacroTrack" %>
+
+<%= turbo_stream_from @conversation %>
+
+<div class="flex items-center justify-between">
+  <h1 class="text-lg font-semibold">Chat</h1>
+  <%= link_to "Today's entries →", day_path(@user.local_today),
+        class: "text-sm text-slate-500 underline hover:no-underline" %>
+</div>
+
+<div data-controller="chat-scroll" class="mt-4 space-y-3">
+  <div id="messages" class="space-y-3" data-chat-scroll-target="list">
+    <% if @messages.empty? %>
+      <p class="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+        Say what you ate. "A bowl of chili and a slice of sourdough with butter" is plenty.
+      </p>
+    <% end %>
+
+    <%= render partial: "messages/message",
+          collection: @messages, as: :message, locals: { user: @user } %>
+  </div>
+
+  <%= render "chats/typing_indicator", visible: false %>
+</div>
+
+<div class="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+  <div class="mx-auto w-full max-w-xl">
+    <%= render "chats/composer" %>
+  </div>
+</div>

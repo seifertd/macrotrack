@@ -1,0 +1,25 @@
+<%# One row of the transcript. Three shapes share this partial because they are three
+    renderings of the same stored thing: a user turn, an assistant turn, and the tool
+    results in between (which are stored as a user turn, because that is what the API
+    requires, but read as confirmations). %>
+<div id="<%= dom_id(message) %>">
+  <% if message.tool_result? %>
+    <div class="space-y-2">
+      <% message.tool_results.each do |result| %>
+        <%= render "messages/confirmation", result: result[:payload], error: result[:error], user: user %>
+      <% end %>
+    </div>
+  <% elsif message.role == "user" %>
+    <div class="flex justify-end">
+      <p class="max-w-[85%] rounded-2xl rounded-br-sm bg-slate-900 px-4 py-2.5 text-sm text-white">
+        <%= message.text %>
+      </p>
+    </div>
+  <% else %>
+    <div class="flex justify-start">
+      <div class="max-w-[85%] rounded-2xl rounded-bl-sm bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm ring-1 ring-slate-200">
+        <%= simple_format message.text, {}, sanitize: true %>
+      </div>
+    </div>
+  <% end %>
+</div>

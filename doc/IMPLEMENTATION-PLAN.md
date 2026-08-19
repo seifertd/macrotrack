@@ -78,7 +78,7 @@ Deferring the *real DNS record* is free. Deferring the **subdomain-vs-`www.dseif
 - [x] **Postgres role and databases on das** — created by `script/setup_production_db.sh`, which is idempotent and reads the port from `pg_lsclusters` rather than hardcoding it. The four databases are pre-created and owned by `macrotrack`, so the role needs no `CREATEDB`. `pg_trgm` is created by the superuser up front, which turns the migration's `enable_extension` into a no-op. The password is generated on the host and written straight into `shared/config/database.yml` (mode 600, a Capistrano `linked_file`) — it is not in Rails credentials.
 - [x] **`pg` gem compiles on das** — verified by the first deploy's `bundle install`.
 - [x] **DNS A record** for `macros.dseifert.net` → `45.79.27.47`. Authoritative on Namecheap's `registrar-servers.com` nameservers (not Linode DNS), propagated, and TLS issued.
-- [ ] **Get an Anthropic API key** and an STT provider key (§2 below). Both into `config/credentials/production.yml.enc`.
+- [x] **Anthropic API key** — in `config/credentials.yml.enc` under `anthropic.api_key`, added 2026-08-18. A Claude Pro subscription does **not** include API access; this is a separate Console org on prepaid credit. Still needed: an STT provider key (§2 below) for WP5. Note the deploy step in WP4 — the credentials file is a Capistrano linked file, so a key added locally does not reach das until it is copied up.
 
 ---
 
@@ -212,7 +212,7 @@ Design refs: §7 (path 1 and the household affordance), §14.5. Zero AI cost.
 
 **So the copy takes a portion.** Entries already carry `quantity_grams` alongside absolute macros, so scaling is `new_grams / original_grams`, applied to calories and all three macros. Where the source entry has no `quantity_grams`, fall back to a plain multiplier (½, 1, 1½, 2) — always offer the multiplier as well, because "half of what he had" is often the honest answer and nobody wants to weigh a bowl to answer it.
 
-### WP6a — pick and portion *(no AI, buildable now)*
+### WP6a — pick and portion *(no AI, buildable now — and now the next one up, since WP4 landed first on 2026-08-18)*
 
 1. **A picker over recent household entries**, both people's, most recent first, deduplicated by food. This is the screen Raquel asked for: what got eaten lately, tap one.
 2. **Portion control on the way in** — grams if the source had grams, multiplier chips otherwise. Show the resulting calories live as it changes, so the number is confirmed before it's saved, not after.
@@ -232,7 +232,25 @@ Design refs: §7 (path 1 and the household affordance), §14.5. Zero AI cost.
 
 ---
 
-## WP4 — Conversational logging, text only *(target: two or three evenings — the biggest package)*
+## WP4 — Conversational logging, text only ✅ *done 2026-08-18*
+
+**Result: 100 tests, 351 assertions, 0 failures, zero network calls. Rubocop clean.** Verified against the real API, not just the suite: "a bowl of chili and a slice of sourdough with butter" logged as **two** entries from two parallel `log_meal` calls in one turn (420 + 205 kcal, both with stated assumptions), and "actually that chili was a huge bowl, more like double" updated entry #8 in place to 840 kcal rather than creating a second row. Prompt caching fires — `cache_read=1874` on every call, the whole tools+system prefix.
+
+**Two bugs the suite could not have caught, both found on the first real call:**
+
+1. **`caller_` went out on the wire.** Assistant turns are persisted by serializing the response's content blocks. `content.to_json` on the array routes through ActiveSupport's `as_json`, which reads each block's *internal* field names — so a `tool_use` block was stored carrying `caller_` instead of `caller`, and the **next** request 400'd. Only the SDK's own per-object `to_json` maps fields back to their API names. Serializing one block at a time fixes it, and `Ai::FakeClient` now builds its canned responses through the same coercion the real client runs on an HTTP body, so a hand-built block can never again serialize differently from a parsed one.
+2. **The model narrated a day total that double-counted the meal it had just logged.** The system prompt carried today's totals *and* the tool returned `day_total`, and it added them — 1,250 against a true 625. Two causes: the volatile block was rebuilt on every loop iteration, so by the second call its "start of this turn" label was false; and the wording invited arithmetic. Now the system prompt is built **once per turn** (which also keeps the cached prefix stable across a turn's requests) and states outright that a tool's `day_total` replaces the figure above, with a worked example. Both turns now quote the tool's number exactly.
+
+The second one is the one to remember: it is a wrong number shown to a person in a calorie tracker, it looked completely plausible, and no test would ever have flagged it. **The suite proves the plumbing; only a real call proves the numbers.**
+
+Four things worth knowing about what got built:
+
+- **`messages.input_source` is a new column.** `last_input_source` had nowhere to read from. It lives on the message rather than the conversation because one thread mixes both — you type a correction to something you dictated — and `meal_entries.source` is copied from it, so WP5 gets voice attribution for free.
+- **The user's message is created by the controller, not the job.** §16 shows the job doing it; that renders a second late, after a worker picks the job up. The job owns everything from the first API call onward.
+- **`Food.match_or_create` exists and delegates to `find_or_create_by_name`.** The tool handlers already call the matching entry point, so WP6b's trigram work lands in one method body instead of every call site.
+- **`Met::Table` is real.** `log_exercise` is in `MealTools::ALL`, so shipping the tool without a handler would have meant the model could call into a hole. It is ~20 activities with a light/moderate/vigorous MET each, falling back to a general value rather than refusing, and defaulting to 75 kg until WP8 puts a weight field on screen.
+
+**Still verbatim-from-§16 and deliberately so:** the copy is unportioned. WP6 changes that, and changing it here would have meant designing WP6's tool schema early.
 
 Design refs: §8, §9, §15, §16, §14.3. **Goal: type "a bowl of chili and a slice of sourdough with butter" and it gets logged.**
 
@@ -246,9 +264,17 @@ Build in this order; each step is independently testable:
 6. **A fake client for tests.** `Ai.client` should be swappable to an `Ai::FakeClient` returning canned responses — one with a `tool_use` block, one with plain text, one with two tool calls in a single turn (to prove all results go back in **one** user message). This is the invariant most likely to break and the one hardest to notice.
 7. **Chat UI + Turbo Streams**: user message appends immediately, typing indicator while the job runs, assistant message and confirmation card stream in, header totals update.
 
-**Done when:** a novel meal logs correctly from the chat, a follow-up correction ("make that double chicken") updates the same entry rather than creating a second one, and the whole suite passes with zero network calls.
+**Done when:** a novel meal logs correctly from the chat, a follow-up correction ("make that double chicken") updates the same entry rather than creating a second one, and the whole suite passes with zero network calls. ✅ all three.
 
-**Watch for:** cost sanity. Log `usage` from every response into `messages.token_estimate` from day one. At ~120 parses/month you should see single-digit dollars; if you see more, something is looping.
+**Deploying it needs one manual step.** `config/credentials.yml.enc` is a Capistrano `linked_file`, so production reads `shared/config/credentials.yml.enc` on das — the repo copy is not what runs. A key added locally has to be copied up before the first deploy that needs it:
+
+```bash
+scp config/credentials.yml.enc das:/home/doug/webapps/macrotrack/production/shared/config/credentials.yml.enc
+```
+
+das's `master.key` is byte-identical to the local one, so no re-encryption is involved. This applies to every future credential too — the STT key in WP5 will need the same step.
+
+**Watch for:** cost sanity. Each turn logs `ai turn: in=… out=… cache_write=… cache_read=…`. A real two-turn exchange costs about 4,700 tokens all-in. Log `usage` from every response into `messages.token_estimate` from day one. At ~120 parses/month you should see single-digit dollars; if you see more, something is looping.
 
 ---
 

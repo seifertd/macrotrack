@@ -6,6 +6,14 @@ class Food < ApplicationRecord
   validates :name, presence: true
   validates :barcode, uniqueness: true, allow_nil: true
 
+  # The name the AI path calls. WP6b replaces the body with pg_trgm similarity scoped
+  # to the household's recent entries — the point of the separate name is that the
+  # tool handlers already call the matching entry point, so that change lands in one
+  # method instead of every call site.
+  def self.match_or_create(name)
+    find_or_create_by_name(name)
+  end
+
   # Trigram matching against this table is WP6; for now a food row is just a name
   # attached to an entry so the manual path has something to display.
   def self.find_or_create_by_name(name)

@@ -1,0 +1,7 @@
+<%# Always present in the DOM so the broadcast has something to replace. %>
+<div id="typing_indicator" class="<%= "hidden" unless visible %> flex items-center gap-1.5 px-1 text-sm text-slate-400">
+  <span class="h-2 w-2 animate-bounce rounded-full bg-slate-300 [animation-delay:-0.3s]"></span>
+  <span class="h-2 w-2 animate-bounce rounded-full bg-slate-300 [animation-delay:-0.15s]"></span>
+  <span class="h-2 w-2 animate-bounce rounded-full bg-slate-300"></span>
+  <span class="ml-1.5">Working it out…</span>
+</div>

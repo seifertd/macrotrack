@@ -1,0 +1,11 @@
+<%= turbo_stream.append "messages" do %>
+  <%= render "messages/message", message: @message, user: Current.user %>
+<% end %>
+
+<%= turbo_stream.replace "typing_indicator" do %>
+  <%= render "chats/typing_indicator", visible: true %>
+<% end %>
+
+<%= turbo_stream.replace "composer" do %>
+  <%= render "chats/composer" %>
+<% end %>
