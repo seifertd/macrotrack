@@ -391,7 +391,14 @@ Three things worth recording:
 - **The manual fallback saves the barcode.** A product OpenFoodFacts doesn't have is entered once, against that number, so the next scan of the same tub — by either phone — resolves offline. Without that, a coverage gap would be a permanent dead end rather than a one-time cost.
 - **The typed-number form is a plain server-rendered GET**, not JS-intercepted. It is the fallback for a browser without `BarcodeDetector` or with the camera refused, so routing it through JS would make the fallback depend on the thing that just failed.
 
-**Not covered by tests, and it can't be:** the camera path itself — `BarcodeDetector`, `getUserMedia`, the detect loop. Browser-only, and this is the package the plan already flagged as needing browser tests more than any screen WP6a built. **It needs a real scan on a real Android phone before it counts as verified.** Everything server-side of the detection — lookup, mapping, kJ fallback, the miss branches, portion maths, adoption — is covered.
+**Not covered by tests, and it can't be:** the camera path itself — `BarcodeDetector`, `getUserMedia`, the detect loop. Browser-only, and this is the package the plan already flagged as needing browser tests more than any screen WP6a built. Everything server-side of the detection — lookup, mapping, kJ fallback, the miss branches, portion maths, adoption — is covered.
+
+*Verified on Doug's phone, 2026-08-19: a snack scanned in production off a real package.* UPC-A `049900342643` resolved through OpenFoodFacts — not the adopt fallback — to **Knudsen cottage cheese, 93.22 kcal/100g, P9.32 C5.08 F4.24**, logged as 115g / 107.2 kcal with `estimated? == false` and no confidence badge, which is the point: a label is read, so it is not hedged on screen. The barcode is stored against the row, so the next scan of that tub from either phone never leaves the building.
+
+Two things that only showed up in real use:
+
+- **It is the first production `foods` row carrying any nutrition.** The other twelve are chat-created names with nil macros, so WP6b's retrieval has been matching names with nothing behind them. The barcode path is what started closing that, ahead of WP4.5.
+- **The portion was typed, not tapped** — 115g is not one of `FoodPortion::PRESETS` (30/50/100/150/200). One data point, but if that keeps happening the presets are the wrong numbers for packaged food, where a serving is whatever the tub says. Worth watching before changing anything.
 
 **The original case for building it, from 2026-08-17.** Keeps its number so existing references still resolve; only the build order changed. The reason is §6's own principle — prefer ground truth wherever it exists. A packaged product like "a Oui black cherry yogurt, 5 oz" is a label to *read*, not a description to infer from: scanning it is exact and free, while an AI estimate of the same words is a guess that can be off by 20%. It's also one evening's work against voice's two, and it makes every packaged snack accurate before the harder paths land.
 
