@@ -1,6 +1,16 @@
 class MealEntriesController < ApplicationController
   before_action :set_meal_entry, only: %i[ edit update destroy ]
 
+  # The add screen: every way into the log on one page, reached from the header so it
+  # stays one tap away however long the day's list gets. It carries the day it was
+  # opened from, because logging to today while looking at the 16th is the same kind of
+  # contradiction the header strip already avoids.
+  def new
+    @date = parse_local_date(params[:date])
+    @header_date = @date
+    @meal_entry = Current.user.meal_entries.new(consumed_at: default_consumed_at, source: "manual")
+  end
+
   def create
     @meal_entry = Current.user.meal_entries.new(meal_entry_params)
     @meal_entry.source = "manual"
@@ -9,7 +19,9 @@ class MealEntriesController < ApplicationController
     if @meal_entry.save
       redirect_to day_for(@meal_entry), notice: "Logged."
     else
-      redirect_to day_path(Current.user.local_today),
+      # Back to the screen the form lives on, still pointed at the day it was for,
+      # rather than bouncing to today with an alert and no way back to the context.
+      redirect_to new_meal_entry_path(date: entry_date(@meal_entry)),
         alert: @meal_entry.errors.full_messages.to_sentence
     end
   end
@@ -48,7 +60,18 @@ class MealEntriesController < ApplicationController
                                     carbs_g meal_type consumed_at ])
     end
 
+    def entry_date(entry)
+      entry.consumed_at ? Current.user.local_date(entry.consumed_at) : Current.user.local_today
+    end
+
     def day_for(entry)
-      day_path(Current.user.local_date(entry.consumed_at))
+      day_path(entry_date(entry))
+    end
+
+    # Prefill the clock only where it means something. On today that is now; on a day
+    # already over, "now" stamps this evening onto a day that ended days ago — plausible
+    # enough to be accepted unedited, and wrong. Noon reads as the placeholder it is.
+    def default_consumed_at
+      @date == Current.user.local_today ? Time.current : @date.noon
     end
 end

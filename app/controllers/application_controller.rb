@@ -14,4 +14,14 @@ class ApplicationController < ActionController::Base
     def use_user_time_zone(&block)
       Time.use_zone(Current.user.timezone, &block)
     end
+
+    # A :date param resolved in the user's own zone. The route constraint only checks
+    # the shape, so a well-formed nonsense date still gets here and falls back to today
+    # rather than raising. Shared by the day page and the add screen, which have to
+    # agree on which day they are looking at.
+    def parse_local_date(value)
+      Date.parse(value)
+    rescue ArgumentError, TypeError
+      Current.user.local_today
+    end
 end

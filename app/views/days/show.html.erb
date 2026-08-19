@@ -58,35 +58,9 @@
   </ul>
 <% else %>
   <p class="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
-    Nothing logged yet.
+    Nothing logged yet. Tap <span class="font-medium text-slate-700">Add</span> up top.
   </p>
 <% end %>
-
-<%= link_to chat_path,
-      class: "mt-6 flex items-center justify-between rounded-xl bg-slate-900 px-4 py-3 text-white" do %>
-  <span class="font-semibold">Log by chat</span>
-  <span class="text-sm text-slate-300">Just say what you ate →</span>
-<% end %>
-
-<%# Ahead of the repeat picker because design §6 orders the paths that way: a label is
-    ground truth, a previous entry is only as good as the entry it came from. %>
-<%= link_to scan_path,
-      class: "mt-2 flex items-center justify-between rounded-xl border border-slate-300 bg-white px-4 py-3" do %>
-  <span class="font-semibold">Scan a barcode</span>
-  <span class="text-sm text-slate-500">Straight off the label →</span>
-<% end %>
-
-<%= link_to repeats_path,
-      class: "mt-2 flex items-center justify-between rounded-xl border border-slate-300 bg-white px-4 py-3" do %>
-  <span class="font-semibold">Repeat a meal</span>
-  <span class="text-sm text-slate-500">Pick from what you've both eaten →</span>
-<% end %>
-
-<section class="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-  <h2 class="font-semibold">Or type the numbers</h2>
-  <p class="mt-0.5 text-xs text-slate-500">Manual entry, for when you already know them.</p>
-  <%= render "meal_entries/form", meal_entry: @meal_entry, url: meal_entries_path, submit_label: "Log it" %>
-</section>
 
 <div class="mt-6 flex items-center justify-center gap-2 text-xs text-slate-400">
   <span>Signed in as <%= @user.name %></span>

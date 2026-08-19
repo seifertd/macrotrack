@@ -20,6 +20,66 @@ class MealEntriesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to day_path(Date.new(2026, 8, 16))
   end
 
+  # The add screen is reached from the header, so it has to work on whatever day the
+  # header was showing — not just today.
+  test "the add screen offers all four ways in" do
+    get new_meal_entry_path
+
+    assert_response :success
+    assert_select "a[href=?]", chat_path
+    assert_select "a[href=?]", scan_path
+    assert_select "a[href=?]", repeats_path
+    assert_select "input[type=submit][value=?]", "Log it"
+  end
+
+  test "the add screen prefills now on today" do
+    get new_meal_entry_path
+
+    assert_response :success
+    assert_equal @user.local_today, assigns_consumed_at.to_date
+  end
+
+  # "Now" on a day that ended days ago is a plausible-looking wrong answer: it would be
+  # accepted unedited. Noon reads as the placeholder it is.
+  test "the add screen prefills noon on a past day" do
+    date = Date.new(2026, 8, 16)
+    get new_meal_entry_path(date: date)
+
+    assert_response :success
+    assert_equal date, assigns_consumed_at.to_date
+    assert_equal 12, assigns_consumed_at.hour
+  end
+
+  test "the add screen falls back to today on an unparseable date" do
+    get new_meal_entry_path(date: "9999-99-99")
+
+    assert_response :success
+    assert_equal @user.local_today, assigns_consumed_at.to_date
+  end
+
+  # The day page's own Add button has to carry the day being viewed, or logging from a
+  # past day silently lands on today.
+  test "the header Add button carries the day on screen" do
+    get day_path(Date.new(2026, 8, 16))
+    assert_select "header a[href=?]", new_meal_entry_path(date: Date.new(2026, 8, 16))
+
+    get root_path
+    assert_select "header a[href=?]", new_meal_entry_path(date: @user.local_today)
+  end
+
+  test "the header Add button is hidden on the add screen itself" do
+    get new_meal_entry_path
+    assert_select "header a[href^=?]", new_meal_entry_path, count: 0
+  end
+
+  # A rejected entry used to land on today with an alert, losing both the screen the form
+  # was on and the day it was for.
+  test "an invalid entry returns to the add screen for the day it was for" do
+    post meal_entries_path, params: { meal_entry: entry_params(calories: -50, consumed_at: "2026-08-16T20:00") }
+
+    assert_redirected_to new_meal_entry_path(date: Date.new(2026, 8, 16))
+  end
+
   test "creating an entry marks it manual and attaches a shared food row" do
     post meal_entries_path, params: { meal_entry: entry_params }
     entry = @user.meal_entries.order(:created_at).last
@@ -82,6 +142,12 @@ class MealEntriesControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+    # The prefilled "When" field, read back out of the rendered form.
+    def assigns_consumed_at
+      value = css_select("input[name='meal_entry[consumed_at]']").first[:value]
+      Time.use_zone(@user.timezone) { Time.zone.parse(value) }
+    end
+
     def entry_params(overrides = {})
       {
         food_name: "oatmeal", calories: 320, protein_g: 12, fat_g: 6, carbs_g: 54,

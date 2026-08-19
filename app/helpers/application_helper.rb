@@ -35,6 +35,11 @@ module ApplicationHelper
     end
   end
 
+  # The header's Add button is noise on the screen it leads to.
+  def add_screen?
+    controller_name == "meal_entries" && action_name == "new"
+  end
+
   def confidence_badge_classes(confidence)
     case confidence
     when "low"    then "bg-amber-100 text-amber-800"
