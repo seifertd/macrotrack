@@ -2,8 +2,15 @@
   <%= render "messages/message", message: @message, user: Current.user %>
 <% end %>
 
-<%= turbo_stream.replace "typing_indicator" do %>
-  <%= render "chats/typing_indicator", visible: true %>
+<% if @suggestion %>
+  <%# Retrieval answered it, so nothing is thinking and no parse was paid for. %>
+  <%= turbo_stream.append "messages" do %>
+    <%= render "messages/message", message: @suggestion, user: Current.user %>
+  <% end %>
+<% else %>
+  <%= turbo_stream.replace "typing_indicator" do %>
+    <%= render "chats/typing_indicator", visible: true %>
+  <% end %>
 <% end %>
 
 <%= turbo_stream.replace "composer" do %>

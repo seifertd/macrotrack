@@ -32,6 +32,37 @@ class Ai::PromptsTest < ActiveSupport::TestCase
     assert_match(/never call copy_to_household_member/, Ai::Prompts.meal_logging(solo).first[:text])
   end
 
+  # Retrieval reaches the model through the volatile block, below the cache breakpoint,
+  # so a different set of hints on every message costs nothing in cache hits.
+  test "hints are listed below the cache breakpoint, never above it" do
+    food = Food.find_or_create_by_name("Magic Juice")
+    food.update!(calories_per_100g: 81.13, protein_per_100g: 3.53, fat_per_100g: 3.53, carbs_per_100g: 8.82)
+    hints = Meals::Matcher.new(@user, "a glass of magic juice").hints
+
+    blocks = Ai::Prompts.meal_logging(@user, hints: hints)
+
+    assert_match(/Magic Juice — 81 kcal per 100g/, blocks.last[:text])
+    assert_no_match(/Magic Juice/, blocks.first[:text])
+    assert_equal Ai::Prompts.meal_logging(@user).first[:text], blocks.first[:text],
+      "hints must not disturb the cached prefix"
+  end
+
+  test "an entry hint carries the portion actually eaten" do
+    entry = users(:partner).meal_entries.create!(
+      source: "text", consumed_at: 2.hours.ago, quantity_grams: 360, calories: 559,
+      protein_g: 30, fat_g: 20, carbs_g: 50, food: Food.find_or_create_by_name("Burst Cherry Tomato Pasta")
+    )
+    hints = Meals::Matcher.new(@user, "burst cherry tomato pasta").hints
+
+    assert_equal entry, hints.first.entry
+    assert_match(/Burst Cherry Tomato Pasta — logged 559 kcal for 360g/, Ai::Prompts.hints_block(hints))
+  end
+
+  test "no hints means no list, rather than an empty heading" do
+    assert_nil Ai::Prompts.hints_block([])
+    assert_no_match(/already has these on file/, Ai::Prompts.meal_logging(@user).last[:text])
+  end
+
   test "the volatile block follows the user's own timezone" do
     travel_to Time.utc(2026, 8, 18, 6, 30) do
       assert_match(/11:30 PM/, Ai::Prompts.meal_logging(@user).last[:text])

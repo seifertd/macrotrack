@@ -36,10 +36,10 @@ module Ai
       Once reasonably confident, call log_meal.
     PROMPT
 
-    def self.meal_logging(user)
+    def self.meal_logging(user, hints: [])
       [
         { type: "text", text: stable_block(user), cache_control: { type: "ephemeral" } },
-        { type: "text", text: volatile_block(user) }
+        { type: "text", text: [ volatile_block(user), hints_block(hints) ].compact.join("\n\n") }
       ]
     end
 
@@ -61,6 +61,46 @@ module Ai
       else
         "Other members of this household, for copy_to_household_member: #{members.join(', ')}."
       end
+    end
+
+    # Design §7 path 1, the half that reaches the model: what this household already has
+    # on file that resembles what was just said. Without it the model is asked to name a
+    # food from scratch every time, and §9 tells it to read an odd-looking name as a
+    # garbled transcript — which is how "magic juice" got logged as mango juice while a
+    # Magic Juice row sat in the database with its macros filled in.
+    def self.hints_block(hints)
+      return nil if hints.blank?
+
+      lines = hints.map { |hint| "- #{describe(hint)}" }
+
+      <<~TEXT.strip
+        This household already has these on file, most similar first:
+
+        #{lines.join("\n")}
+
+        If one of them is plainly what the user means, use that name **exactly** as
+        written above and base the numbers on it rather than estimating afresh — these
+        are records of what was actually eaten, which beats any estimate you could make.
+        A name that looks misspelled or odd is likely one of these, not a transcription
+        error. If none of them fit, ignore this list and carry on as usual.
+      TEXT
+    end
+
+    def self.describe(hint)
+      return "#{hint.name} — #{number(hint.food.calories_per_100g)} kcal per 100g, " \
+             "#{number(hint.food.protein_per_100g)}g protein, #{number(hint.food.fat_per_100g)}g fat, " \
+             "#{number(hint.food.carbs_per_100g)}g carbs" unless hint.entry?
+
+      entry = hint.entry
+      portion = entry.quantity_grams.present? ? " for #{number(entry.quantity_grams)}g" : ""
+
+      "#{hint.name} — logged #{number(entry.calories)} kcal#{portion} " \
+        "(#{number(entry.protein_g)}g protein, #{number(entry.fat_g)}g fat, #{number(entry.carbs_g)}g carbs) " \
+        "on #{entry.user.local_date(entry.consumed_at).strftime('%-d %B')}"
+    end
+
+    def self.number(value)
+      value.to_f.round
     end
 
     # Below the cache breakpoint, so it can change every request for free.

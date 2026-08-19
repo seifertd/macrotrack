@@ -1,6 +1,10 @@
 class Message < ApplicationRecord
   belongs_to :conversation
 
+  # Set on an assistant turn that offers a meal retrieval found (§7 path 1). Cleared
+  # once it has been answered, so the buttons don't come back on a reload.
+  belongs_to :suggested_meal_entry, class_name: "MealEntry", optional: true
+
   ROLES = %w[ user assistant ].freeze
   INPUT_SOURCES = %w[ text voice ].freeze
 
@@ -45,6 +49,10 @@ class Message < ApplicationRecord
   # the history — the tool_use block has to be there — it just isn't a chat bubble.
   def renderable?
     text? || tool_result?
+  end
+
+  def suggestion?
+    suggested_meal_entry_id.present?
   end
 
   private

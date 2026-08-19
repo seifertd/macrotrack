@@ -1,0 +1,10 @@
+<%# The offer stays in the transcript; only its buttons go. %>
+<%= turbo_stream.remove dom_id(@message, :actions) %>
+
+<%= turbo_stream.append "messages" do %>
+  <%= render "messages/entry_card", entry: @entry, user: Current.user, updated: false %>
+<% end %>
+
+<%= turbo_stream.replace "header_strip" do %>
+  <%= render "shared/header_strip", user: Current.user, date: Current.user.local_today %>
+<% end %>

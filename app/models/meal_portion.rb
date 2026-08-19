@@ -41,7 +41,10 @@ class MealPortion
     end
   end
 
-  def attributes_for(user)
+  # `logged_as` rather than `source:` on purpose — this object already has a `source`,
+  # the entry being copied from, and one word meaning both things is how a String ends
+  # up where a MealEntry was expected.
+  def attributes_for(user, logged_as: "copied")
     scaled.merge(
       user: user,
       food_id: source.food_id,
@@ -49,13 +52,13 @@ class MealPortion
       confidence: source.confidence,
       assumptions: assumptions,
       raw_input: source.raw_input,
-      source: "copied",
+      source: logged_as,
       consumed_at: Time.current
     )
   end
 
-  def log_for!(user)
-    user.meal_entries.create!(attributes_for(user).except(:user))
+  def log_for!(user, logged_as: "copied")
+    user.meal_entries.create!(attributes_for(user, logged_as: logged_as).except(:user))
   end
 
   # The source's assumptions describe the portion the *source* ate — "assumed a pub-sized

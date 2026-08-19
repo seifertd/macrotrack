@@ -22,7 +22,11 @@ class AiChatTurnJob < ApplicationJob
     # "at the start of this turn" label stops being true and the model ends up narrating
     # a day total that double-counts the meal it just logged. Holding it still also keeps
     # the cached prefix identical across the turn's requests, which is the point of §8.
-    system_prompt = Ai::Prompts.meal_logging(user)
+    # Retrieval runs before the first request, not between iterations: the hints describe
+    # what the user said at the top of the turn, and re-deriving them mid-turn would let
+    # a meal this turn just logged come back as a suggestion to log it again.
+    hints = Meals::Matcher.new(user, conversation.last_user_text).hints
+    system_prompt = Ai::Prompts.meal_logging(user, hints: hints)
 
     MAX_ITERATIONS.times do
       response = client.messages.create(
