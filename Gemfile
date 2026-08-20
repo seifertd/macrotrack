@@ -64,11 +64,5 @@ group :development do
   gem "capistrano-rails", require: false
 end
 
-group :test do
-  # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
-  gem "capybara"
-  gem "selenium-webdriver"
-end
-
 gem "anthropic", "~> 1.62"
 gem "faraday", "~> 2.14"
