@@ -32,6 +32,16 @@ class MealEntry < ApplicationRecord
       .includes(:food, :user)
   end
 
+  # The same typed search as `Food.named_like`, against what the household has actually
+  # eaten. `raw_input` is matched as well as the food's name because `display_name` falls
+  # back to it — a row you can read on the day page is a row you should be able to find —
+  # and the join is left, or entries with no food row would drop out of their own search.
+  scope :named_like, ->(query) {
+    left_joins(:food).where(
+      "#{Food.name_match_sql('foods.name', query)} OR #{Food.name_match_sql('meal_entries.raw_input', query)}"
+    )
+  }
+
   # Deduplicated by food, so a dinner eaten four times in a fortnight occupies one row of
   # the picker instead of four. Done in Ruby rather than SQL: entries without a food row
   # fall back to their display name, and DISTINCT ON can't express that.

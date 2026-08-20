@@ -40,6 +40,18 @@ module ApplicationHelper
     controller_name == "meal_entries" && action_name == "new"
   end
 
+  # Where a food's numbers came from, said in one phrase under its name. It matters
+  # more now than it did when only the scanner showed it: a label is ground truth, and
+  # an imported recipe is somebody's own arithmetic about their own cooking.
+  def food_provenance(food)
+    case food.source
+    when "openfoodfacts" then "from the label"
+    when "usda"          then "from the USDA tables"
+    when "ai_estimate"   then "estimated"
+    else "entered by hand"
+    end
+  end
+
   def confidence_badge_classes(confidence)
     case confidence
     when "low"    then "bg-amber-100 text-amber-800"

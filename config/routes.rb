@@ -8,6 +8,13 @@ Rails.application.routes.draw do
   resources :repeats, only: %i[ index show ]
   post "repeats/:id" => "repeats#create", as: :log_repeat
 
+  # A food nobody has eaten yet needs a portion screen keyed on the food itself (WP4.4).
+  # The repeat picker's is keyed on an entry and the scanner's on a barcode, so between
+  # them they can reach everything except a row that has only a name and its macros —
+  # which is every imported recipe.
+  resources :foods, only: %i[ show ]
+  post "foods/:id" => "foods#create", as: :log_food
+
   # Scan a barcode and log a portion of what the label says (WP7). The barcode is the
   # id here rather than a `foods` id: at scan time we may not have a row for it yet,
   # and after the manual fallback the same URL has to keep working.

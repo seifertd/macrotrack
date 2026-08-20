@@ -4,7 +4,7 @@ Companion to `macro-tracker-design.md` (rev. 3). That doc says *what and why*; t
 
 Ordered so the app is on both phones by the end of WP2, sharing meals between the two of us by the end of WP6a, logging by conversation by the end of WP4, and logging by voice by the end of WP5.
 
-**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → **WP7** → **WP7.5** → WP4.5 → WP5 → WP8 → WP9 → WP10.
+**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → **WP7** → **WP7.5** → **WP4.4** → WP4.5 → WP5 → WP8 → WP9 → WP10.
 
 Numbers are stable identifiers, not sequence. Three packages have moved since the first draft — barcode ahead of voice, and repeat-meals ahead of everything else — and keeping their numbers means existing cross-references still resolve. The reordering rule has been the same each time: **whatever removes real friction soonest, for the least work.**
 
@@ -258,7 +258,7 @@ So the live preview was checked the honest way: drive it, look at it. Tapping 0.
 
 **Hit rate is instrumented** — every message logs `meal match: hit|miss score= name= query=`, which is the number §17's pg_trgm-vs-pgvector question turns on. The threshold is a constant with the measured margins written next to it, because it was tuned against six real foods and wants revisiting once there are sixty.
 
-**Still open:** a food with nutrition but no entry (an import) can only be a hint, never a one-tap suggestion, because there is no portion to offer. Magic Juice logs correctly today via the model. Giving imports a portion screen of their own is WP4.5's problem, and it will have ~141 of them.
+**Still open at the time, closed by WP4.4:** a food with nutrition but no entry (an import) could only be a hint, never a one-tap suggestion, because there was no portion to offer. It now has a portion screen and a search box, reached from the picker rather than the chat. It is still not a one-tap *chat* suggestion, and WP4.4 says why that stayed a decision rather than an oversight.
 
 #### The evidence that moved this up the order
 
@@ -334,9 +334,54 @@ das's `master.key` is byte-identical to the local one, so no re-encryption is in
 
 ---
 
+## WP4.4 — Reaching a food nobody has eaten ✅ *done 2026-08-19*
+
+**Result: 239 tests, 837 assertions, 0 failures. Rubocop clean.** Driven on the real dev database, not just asserted: searching *magic* on `/repeats` returns **Magic Juice**, its portion screen defaults to one 227 g serving at **163 kcal**, and 1½ servings logs **340 g / 245 kcal** onto today, rendered unhedged on the day page.
+
+**The gap, found by using the app.** Doug searched the chat for "serving magic juice" and got nothing, then looked for Magic Juice in the repeat picker and found nothing there either. Two different causes, and only the second is a gap in the code:
+
+1. **Production has no imported rows at all.** The chat found nothing because there is nothing to find — see the 2026-08-19 note under WP6b. That is WP4.5's job and no screen fixes it. (Checked in dev, where the row *does* exist, the matcher scores `word_similarity("Magic Juice", "serving magic juice")` at **1.00** — retrieval was never the problem.)
+2. **Nothing in the app can surface a `foods` row that has never been eaten.** `RepeatsController#index` draws from `MealEntry.recent_in_household`; it is an *entries* list deduplicated by food, so a row with no entry behind it is unreachable by construction. `Meals::Matcher#best_entry` has the same rule for the same stated reason — a bare foods row has no portion to offer. Foods reach `#hints` and nowhere else, which makes them a line in a prompt and nothing more.
+
+**This was already written down as WP6b's one open item, assigned to WP4.5.** It is split back out and built first, because the two halves of WP4.5 are independent and that ordering was backwards: extraction first produces ~141 rows with no way to look at a single one of them in the app. Phase 2 is scans of handwritten cards where a misread quantity yields confidently wrong macros — reviewing those needs a screen that exists.
+
+**Nothing new was needed to build it.** WP7 already wrote the object: `FoodPortion` is a portion screen for a food with no entry, and WP7.5 gave it servings. `EasyfitImport` rejects any row without a positive `serving_g`, so all ~123 imports arrive knowing what one serving weighs — the ½ / 1 / 1½ / 2 chips work on every one of them with no extra work. The form itself is now `shared/_portion_form`, rendered by the scanner and the picker alike, because the question they ask is identical and only the way you arrived differs.
+
+### What changed
+
+- **A food has its own portion screen**, keyed on the food (`/foods/:id`) rather than a barcode or an entry. The scanner's version could only be reached by holding the tub up to the camera again; an imported recipe has neither a barcode nor an entry, so it could be reached by name in the chat and nowhere else.
+- **The repeat picker is now "Find a food"**, with a search box. Unsearched, it is exactly what it was — what the household ate in the last 30 days, newest first, which is what Raquel asked for and what actually gets tapped. Searched, it also lists foods nobody has eaten, under a heading that says so.
+- **Entries win their food's slot.** A plate somebody really ate beats a serving size off a label, so a food that has been eaten appears once, as the entry, and never twice under two headings.
+- **Searching reaches back a year; browsing still stops at 30 days.** The window is what keeps the unsearched list short enough to scan. Someone typing a name has already said which meal they want, and "we ate that in March" is the answer they are after.
+- **Entries logged this way are `source: "matched"`**, not `manual` — the numbers came off a row we already had rather than being typed or estimated, so the day page states them instead of hedging them.
+- **Foods with no macros are never offered.** Most of the table is still names the chat invented with nothing behind them; there is nothing to put on a portion screen for one of those, so the picker filters them and the URL redirects with a note.
+
+### The search threshold is 0.6, and it was measured
+
+A typed search is a different question from `Meals::Matcher`'s and wants a different rule. That reads a whole sentence and has to keep a correction from being mistaken for a food, which is why it sits at 0.45 and only ever *suggests*. This reads a query somebody deliberately typed, and a wrong row costs a glance.
+
+Measured against the real corpus — ten EasyFit names mistyped the way a phone keyboard mistypes them, each scored against its own row and against the other 122:
+
+| | worst | best |
+|---|---:|---:|
+| The row the query meant | **0.714** (`magik juice`) | 1.000 |
+| The strongest row it did **not** mean | 0.176 | **0.556** (`tofu stw` → *Tofu Fried Rice*) |
+
+So the gap is 0.56 to 0.71 and **0.6 sits in the middle of it**. Worth noting the rows just under the bar are near-misses rather than nonsense: this is trading a little recall for a short list, which is the right trade on a phone.
+
+**`word_similarity` does more of the work than expected**, and the substring clause beside it nearly became decorative. Measured, the trigram already handles the half-typed word (`mag` → 0.75 against *Magic Juice*) and the fragment starting mid-word (`inger Miso So` → 0.85), because it scores against the best-matching run of characters rather than the whole name. `ILIKE` is kept for the one case it is genuinely load-bearing — a query too short for trigrams to say anything about, where a bare `m` scores 0.50 and would otherwise miss — and because it makes the promise unconditional: a run of characters really in the name returns the row, whatever this threshold is tuned to next. It is one more OR against the same GIN index.
+
+### Deliberately not built: a food as a one-tap chat suggestion
+
+`best_entry` could now offer a food, since there is finally a portion to offer. It doesn't, and that is a decision rather than an oversight. WP6b's margin — weakest genuine match 0.45, strongest ordinary follow-up 0.40 — was measured against **six** foods the household had actually eaten. A food match means a name exists in a corpus about to grow to ~141 imports, many of them variations on each other, which is the case the plan already flagged as wanting the threshold revisited. Offering a one-tap card there would insert a whole meal in the middle of a correction. It stays a hint until there is data to say otherwise; the cost is one API call, which is what today already costs.
+
+**Done when:** you can find and log a portion of a food nobody has eaten yet, by name, in three taps and no model call.
+
+---
+
 ## WP4.5 — Recipe import from Drive *(target: one evening for phase 1, several sittings for phase 2)*
 
-**Goal: the ~141 recipes in the shared Drive folder become `foods` rows, so "log a bowl of the lentil soup" hits retrieval instead of a fresh estimate.** Added 2026-08-17 after the first real friction point: the burst cherry tomato pasta had to be costed by hand, ingredient by ingredient, before it could be logged.
+**Goal: the ~141 recipes in the shared Drive folder become `foods` rows, so "log a bowl of the lentil soup" hits retrieval instead of a fresh estimate.** The screen that shows one and portions it is no longer part of this package — WP4.4 split it out and built it first, so every row this imports is reviewable the moment it lands. Added 2026-08-17 after the first real friction point: the burst cherry tomato pasta had to be costed by hand, ingredient by ingredient, before it could be logged.
 
 Folder: `0B2s-AeGV6GVJN0ZkYkY1LUdPdU0` (shared — files owned by doug@dseifert.net, doug.seifert@gmail.com, and raquel@dseifert.net).
 
@@ -525,13 +570,15 @@ WP1 skeleton+auth+manual ──▶ WP2 deploy+PWA ──▶ WP3 backups
                                    │              read the foods table, so imports
                                    │              were worse than useless)
                                    ▼
-                            WP7 barcode ──▶ WP4.5 recipe import (Drive) ──▶ WP5 VOICE ◀── ergonomics,
-                                   │        (moved 2026-08-19: one evening                  not capability
-                                   │         against several sittings)
-                                   └──▶ WP8 weight+trends ──▶ WP9 calibration
-                                                                  │
-                                                            WP10 CSV export
-                                                            WP11 if missed
+                    WP7 barcode ──▶ WP4.4 reach a food ──▶ WP4.5 recipe import (Drive)
+                            │       (split out of WP4.5 2026-08-19:            │
+                            │        141 imports need a screen to be           ▼
+                            │        checked on before they exist)      WP5 VOICE ◀── ergonomics,
+                            │                                                          not capability
+                            └──▶ WP8 weight+trends ──▶ WP9 calibration
+                                                           │
+                                                     WP10 CSV export
+                                                     WP11 if missed
 ```
 
 Realistic total: **10–14 evenings** to the end of WP6, which is the version you'd actually keep using. WP4 is the one that will overrun.

@@ -1,16 +1,44 @@
-<% content_for :title, "Repeat a meal — MacroTrack" %>
+<% content_for :title, "Find a food — MacroTrack" %>
 
+<%# Named "Find a food" rather than "Repeat a meal" since WP4.4. The list underneath is
+    still mostly what the household ate lately — that is what Raquel asked for and what
+    gets tapped — but the box above it reaches things nobody has eaten at all, and a
+    screen called "repeat" cannot honestly offer those. %>
 <div class="flex items-center justify-between">
-  <h1 class="text-lg font-semibold">Repeat a meal</h1>
+  <h1 class="text-lg font-semibold">Find a food</h1>
   <%= link_to "Today →", day_path(@user.local_today),
         class: "text-sm text-slate-500 underline hover:no-underline" %>
 </div>
 <p class="mt-0.5 text-sm text-slate-500">
-  Anything either of you logged recently. Tap one, set your portion.
+  Anything either of you logged recently — or search for a recipe or label by name.
 </p>
 
+<%# Deliberately not autofocused. This is a phone: the common case is tapping last
+    night's dinner, and a keyboard covering half the list to get there is a tax on it. %>
+<%= form_with url: repeats_path, method: :get, class: "mt-3" do %>
+  <div class="flex gap-2">
+    <%= search_field_tag :q, @query, placeholder: "Search by name",
+          autocomplete: "off", autocapitalize: "none",
+          class: "min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-base focus:border-slate-500 focus:outline-none" %>
+    <%= submit_tag "Search",
+          class: "shrink-0 cursor-pointer rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700" %>
+  </div>
+<% end %>
+
+<% if @query.present? %>
+  <p class="mt-3 text-sm text-slate-500">
+    <%= pluralize(@entries.size + @foods.size, "match") %> for “<%= @query %>”.
+    <%= link_to "Clear", repeats_path, class: "underline hover:no-underline" %>
+  </p>
+<% end %>
+
 <% if @entries.any? %>
-  <ul class="mt-4 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
+  <% if @query.present? %>
+    <h2 class="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">You've eaten these</h2>
+  <% end %>
+  <%# Full class names, not an interpolated suffix — Tailwind scans this file for the
+      literal string and cannot see one that is assembled at render time. %>
+  <ul class="<%= @query.present? ? "mt-2" : "mt-4" %> divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
     <% @entries.each do |entry| %>
       <li>
         <%= link_to repeat_path(entry), class: "flex items-baseline justify-between gap-3 px-4 py-3 hover:bg-slate-50" do %>
@@ -27,8 +55,44 @@
       </li>
     <% end %>
   </ul>
-<% else %>
-  <p class="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
-    Nothing logged in the last month yet. Log a meal first and it'll show up here.
-  </p>
+<% end %>
+
+<%# Only ever shown for a search — see RepeatsController#matching_foods for why. The
+    heading says plainly that nobody has eaten these, because the portion offered is a
+    serving size off a label or a recipe rather than a plate someone really ate. %>
+<% if @foods.any? %>
+  <h2 class="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">On file, never logged</h2>
+  <ul class="mt-2 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <% @foods.each do |food| %>
+      <li>
+        <%= link_to food_path(food, q: @query), class: "flex items-baseline justify-between gap-3 px-4 py-3 hover:bg-slate-50" do %>
+          <div class="min-w-0">
+            <p class="truncate font-medium"><%= food.name %></p>
+            <p class="mt-0.5 text-xs text-slate-500">
+              <%= food_provenance(food) %>
+              <% if food.serving_g.present? %>· 1 serving = <%= grams(food.serving_g) %><% end %>
+            </p>
+          </div>
+          <p class="shrink-0 text-right">
+            <span class="font-semibold tabular-nums"><%= calories(food.calories_per_100g) %></span>
+            <span class="block text-xs text-slate-500">per 100g</span>
+          </p>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if @entries.none? && @foods.none? %>
+  <div class="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+    <% if @query.present? %>
+      <p>Nothing on file matches “<%= @query %>”.</p>
+      <p class="mt-2">
+        <%= link_to "Say it in the chat instead", chat_path, class: "underline hover:no-underline" %> —
+        it can work the numbers out.
+      </p>
+    <% else %>
+      <p>Nothing logged in the last month yet. Log a meal first and it'll show up here.</p>
+    <% end %>
+  </div>
 <% end %>
