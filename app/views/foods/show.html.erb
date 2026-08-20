@@ -1,0 +1,13 @@
+<% content_for :title, "#{@food.name} — MacroTrack" %>
+
+<%# Back to the picker, carrying the search that got here — coming back to an empty box
+    after logging one of five matches means typing it again. %>
+<%= link_to "‹ Back", repeats_path(q: params[:q].presence),
+      class: "text-sm text-slate-500 underline hover:no-underline" %>
+
+<h1 class="mt-2 text-lg font-semibold"><%= @food.name %></h1>
+<p class="mt-0.5 text-sm text-slate-500">
+  <%= calories(@food.calories_per_100g) %> kcal per 100g · <%= food_provenance(@food) %>
+</p>
+
+<%= render "shared/portion_form", portion: @portion, url: log_food_path(@food) %>
