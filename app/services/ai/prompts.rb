@@ -99,6 +99,38 @@ module Ai
         "on #{entry.user.local_date(entry.consumed_at).strftime('%-d %B')}"
     end
 
+    # The day as the database has it, which is not the same thing as the day the
+    # conversation above describes. Entries are logged, edited and deleted on screens
+    # this thread never sees, and a turn from an hour ago saying a meal was logged is not
+    # evidence that it still is. Without this the model refuses to log a meal it can see
+    # itself logging earlier in the transcript, however long ago the user deleted it —
+    # which is exactly what it did on 22 August with two small figs.
+    def self.log_block(user, now)
+      entries = user.entries_on(user.local_date(now)).includes(:food).order(:consumed_at)
+
+      return "Nothing is logged for today yet." if entries.empty?
+
+      lines = entries.map do |entry|
+        portion = entry.quantity_grams.present? ? ", #{number(entry.quantity_grams)}g" : ""
+
+        "- ##{entry.id} #{entry.consumed_at.in_time_zone(user.timezone).strftime('%-l:%M %p').downcase} " \
+          "#{entry.display_name} — #{number(entry.calories)} kcal#{portion}"
+      end
+
+      <<~TEXT.strip
+        Logged today, as of this turn:
+
+        #{lines.join("\n")}
+
+        That list is the whole of today's log right now, and it is authoritative. If a
+        meal the conversation above says was logged is not on it, it has been deleted or
+        edited since — believe the list, not the transcript, and never refuse to log
+        something on the grounds that you remember logging it earlier. The numbers after
+        the # are meal_entry_id values, so a correction to any of these can go straight to
+        update_meal without asking the user which entry they mean.
+      TEXT
+    end
+
     def self.number(value)
       value.to_f.round
     end
@@ -112,6 +144,8 @@ module Ai
         Current local time: #{now.strftime('%A %-d %B %Y, %-l:%M %p')} (#{user.timezone}).
 
         Day totals at the start of this turn: #{totals[:calories].to_i} kcal, #{totals[:protein_g].to_i}g protein, #{totals[:fat_g].to_i}g fat, #{totals[:carbs_g].to_i}g carbs.
+
+        #{log_block(user, now)}
 
         Every tool that writes an entry returns `day_total`. That is the complete total
         for the whole day after your change — not the entry you just logged, and not a
