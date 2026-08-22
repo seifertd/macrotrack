@@ -43,11 +43,29 @@ class MealEntry < ApplicationRecord
     )
   }
 
+  # Carries the two ranking measures back with each row so a search can be ordered by how
+  # well it matched. Selected rather than ordered in SQL because the deduplication below
+  # has to run first: the row kept for a food must be the most recent one somebody ate,
+  # and only then does the *set* of foods get put in order of how well they match.
+  scope :scored_against, ->(query) {
+    select(
+      "meal_entries.*",
+      "#{Food.word_score_sql(query, 'foods.name', 'meal_entries.raw_input')} AS word_score",
+      "#{Food.whole_score_sql(query, 'foods.name', 'meal_entries.raw_input')} AS whole_score"
+    )
+  }
+
   # Deduplicated by food, so a dinner eaten four times in a fortnight occupies one row of
   # the picker instead of four. Done in Ruby rather than SQL: entries without a food row
   # fall back to their display name, and DISTINCT ON can't express that.
   def self.distinct_by_food(entries)
     entries.uniq { |entry| entry.food_id || entry.display_name.downcase }
+  end
+
+  # Best match first. Ruby rather than SQL for the same reason the deduplication is:
+  # it happens after it, on a list rather than a relation.
+  def self.by_confidence(entries)
+    entries.sort_by { |entry| [ -entry.word_score.to_f, -entry.whole_score.to_f, entry.display_name.downcase ] }
   end
 
   # Manual and barcode entries are read or typed, not inferred, so they don't get

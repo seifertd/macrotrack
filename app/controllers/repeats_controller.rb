@@ -5,7 +5,11 @@ class RepeatsController < ApplicationController
   # an unsearched list short enough to scan; somebody typing a name has said which meal
   # they want, and "we ate that in March" is the answer they are looking for.
   SEARCH_WINDOW = 1.year
-  FOOD_LIMIT = 20
+  # Raised from 20 with the ranking work: a cap that silently drops matches is the thing
+  # being complained about, and no real search comes close to it — "chicken" returns 12
+  # and "beef" 8 against a 224-food corpus. It exists only so a stray one-letter query,
+  # which the substring match answers with 170 rows, does not render all of them.
+  FOOD_LIMIT = 50
 
   # The screen Raquel asked for — what got eaten lately, tap one — plus, since WP4.4, a
   # way to reach a food nobody has eaten at all.
@@ -13,6 +17,7 @@ class RepeatsController < ApplicationController
     @user = Current.user
     @query = params[:q].to_s.strip
     @entries = MealEntry.distinct_by_food(matching_entries)
+    @entries = MealEntry.by_confidence(@entries) if @query.present?
     @foods = matching_foods
     @header_date = @user.local_today
   end
@@ -48,12 +53,17 @@ class RepeatsController < ApplicationController
       return MealEntry.recent_in_household(@user.household) if @query.blank?
 
       MealEntry.recent_in_household(@user.household, since: SEARCH_WINDOW.ago, limit: nil)
-        .named_like(@query)
+        .named_like(@query).scored_against(@query)
     end
 
     # Foods only ever answer a search. There is no honest way to rank a row nobody has
     # eaten — recency needs something to be recent — and WP4.5's ~141 recipes would bury
     # the handful of meals that are actually worth one tap.
+    #
+    # Entries still sit above foods rather than being interleaved by score, and that is a
+    # judgement about usefulness rather than about matching: an entry carries a portion
+    # somebody really ate, which beats a serving size even when it matches slightly worse.
+    # Within each list, best match first.
     #
     # An entry already on screen wins its food's slot: it carries a portion somebody
     # really ate, which beats a serving size every time.
@@ -62,7 +72,11 @@ class RepeatsController < ApplicationController
 
       Food.loggable.named_like(@query)
         .where.not(id: @entries.filter_map(&:food_id))
-        .order(Arel.sql("word_similarity(#{Food.sanitize_sql_array([ '?', @query ])}, foods.name) DESC"), :name)
+        .order(
+          Arel.sql("#{Food.word_score_sql(@query, 'foods.name')} DESC"),
+          Arel.sql("#{Food.whole_score_sql(@query, 'foods.name')} DESC"),
+          :name
+        )
         .limit(FOOD_LIMIT)
     end
 end
