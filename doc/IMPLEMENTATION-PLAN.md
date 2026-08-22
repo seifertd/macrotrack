@@ -4,7 +4,7 @@ Companion to `macro-tracker-design.md` (rev. 3). That doc says *what and why*; t
 
 Ordered so the app is on both phones by the end of WP2, sharing meals between the two of us by the end of WP6a, logging by conversation by the end of WP4, and logging by voice by the end of WP5.
 
-**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → **WP7** → **WP7.5** → **WP4.4** → WP4.5 → WP5 → WP8 → WP9 → WP10.
+**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → **WP7** → **WP7.5** → **WP4.4** → **WP4.5-a** → WP5 → WP8 → WP9 → WP10. **WP4.5-b is not scheduled** — it has three open questions and no deadline, because the backlog it would have served is already imported.
 
 Numbers are stable identifiers, not sequence. Three packages have moved since the first draft — barcode ahead of voice, and repeat-meals ahead of everything else — and keeping their numbers means existing cross-references still resolve. The reordering rule has been the same each time: **whatever removes real friction soonest, for the least work.**
 
@@ -346,7 +346,7 @@ das's `master.key` is byte-identical to the local one, so no re-encryption is in
 
 **The gap, found by using the app.** Doug searched the chat for "serving magic juice" and got nothing, then looked for Magic Juice in the repeat picker and found nothing there either. Two different causes, and only the second is a gap in the code:
 
-1. **Production has no imported rows at all.** The chat found nothing because there is nothing to find — see the 2026-08-19 note under WP6b. That is WP4.5's job and no screen fixes it. (Checked in dev, where the row *does* exist, the matcher scores `word_similarity("Magic Juice", "serving magic juice")` at **1.00** — retrieval was never the problem.)
+1. **Production has no imported rows at all.** The chat found nothing because there is nothing to find — see the 2026-08-19 note under WP6b. That is WP4.5-a's job and no screen fixes it. (Closed 2026-08-21: 190 rows.) (Checked in dev, where the row *does* exist, the matcher scores `word_similarity("Magic Juice", "serving magic juice")` at **1.00** — retrieval was never the problem.)
 2. **Nothing in the app can surface a `foods` row that has never been eaten.** `RepeatsController#index` draws from `MealEntry.recent_in_household`; it is an *entries* list deduplicated by food, so a row with no entry behind it is unreachable by construction. `Meals::Matcher#best_entry` has the same rule for the same stated reason — a bare foods row has no portion to offer. Foods reach `#hints` and nowhere else, which makes them a line in a prompt and nothing more.
 
 **This was already written down as WP6b's one open item, assigned to WP4.5.** It is split back out and built first, because the two halves of WP4.5 are independent and that ordering was backwards: extraction first produces ~141 rows with no way to look at a single one of them in the app. Phase 2 is scans of handwritten cards where a misread quantity yields confidently wrong macros — reviewing those needs a screen that exists.
@@ -385,48 +385,150 @@ So the gap is 0.56 to 0.71 and **0.6 sits in the middle of it**. Worth noting th
 
 ---
 
-## WP4.5 — Recipe import from Drive *(target: one evening for phase 1, several sittings for phase 2)*
+## WP4.5-a — Bulk import of structured food data ✅ *done 2026-08-21*
 
-**Goal: the ~141 recipes in the shared Drive folder become `foods` rows, so "log a bowl of the lentil soup" hits retrieval instead of a fresh estimate.** The screen that shows one and portions it is no longer part of this package — WP4.4 split it out and built it first, so every row this imports is reviewable the moment it lands. Added 2026-08-17 after the first real friction point: the burst cherry tomato pasta had to be costed by hand, ingredient by ingredient, before it could be logged.
+**Goal: hand the app a file of foods and have every row land as a `foods` row, so "log a bowl of the lentil soup" hits retrieval instead of a fresh estimate.** Shipped as `Foods::CsvImport` and `rake 'foods:import[path]'`. **190 foods are in production as of 2026-08-21**, which is what closes the hole WP6b and WP4.4 both kept running into: retrieval was matching names with nothing behind them.
 
-Folder: `0B2s-AeGV6GVJN0ZkYkY1LUdPdU0` (shared — files owned by doug@dseifert.net, doug.seifert@gmail.com, and raquel@dseifert.net).
+**This replaces the old WP4.5, "Recipe import from Drive" (rewritten 2026-08-22).** That package folded two unlike things into one number — a *product feature* (the app accepts structured food data) and a *one-off chore* (Doug's recipe corpus and EasyFit export, cleaned up and merged). They have different done-conditions and different lifespans, so they split into 4.5-a and 4.5-b. The `4.5` prefix stays so the cross-references in WP6b, WP4.4, WP7, WP7.5 and WP5 still resolve.
 
-**A recipe becomes one `foods` row with per-100g macros — not a new Recipe model with ingredients.** `foods` is already per-100g and `meal_entries.quantity_grams` is grams, so a portion is just a weight. This needs no schema change and feeds WP6's repeat-matching for free via the existing trigram index on `foods.name`. A full ingredient model only earns its keep if you want to scale recipes up and down; don't build it on spec.
+The **one-off merge does not ship**. Its only surviving output is one file in the supported format, `db/seeds/foods.csv`, imported through the real feature like any user's would be. Provenance is a non-goal: no row records which corpus it came from, because nothing downstream would ever read it.
 
-**Do this after WP4, not before.** It reuses WP4's machinery — parse text into ingredients, look up or estimate nutrition per ingredient, total it. Building it first means building that twice.
+### The import format
 
-### Inventory (counted 2026-08-17)
+CSV, one row per food, header line required. Column order is free; unknown columns are ignored.
 
-| Format | Count | Extraction |
-|---|---:|---|
-| PDF, web print-outs | ~62 | Clean text |
-| PDF, 2012-era scans | ~40 | Vision — see below |
-| Google Docs | ~34 | Clean text |
-| `SeifertFamilyRecipes.docx` | 1 | A compilation; needs splitting into many |
-| PNG / JPEG photos | 2 | Vision |
-| `.html` / `.mhtml` | 2 | Clean text |
+| Column | Required | Meaning |
+|---|---|---|
+| `name` | yes | Matched case-insensitively against existing rows, so a re-import updates rather than duplicates |
+| `basis` | yes | `100g` or `serving` — what the numbers on this row are *per* |
+| `calories` | yes | kcal, on the stated basis |
+| `protein_g` `carbs_g` `fat_g` | no | grams, on the stated basis |
+| `serving_g` | when `basis=serving` | The weight one serving actually is |
+| `serving_label` | no | What a human calls that portion — "1 slice", "2 tbsp" |
 
-### Phase 1 — the ~100 clean files
+Five rules, all enforced rather than documented-and-hoped-for:
 
-Batch script, run once, largely unattended. Extract → ingredients → nutrition per ingredient → total → divide by stated yield → one `foods` row.
+1. **`basis=serving` requires `serving_g`.** Without a weight the figures can never reach per-100g, and a row that can't be converted isn't a food, it's a note.
+2. **`serving_label` requires `serving_g` behind it.** A chip reading "1 bowl" with no weight attached is a lie with a nice font.
+3. **A blank macro stays `nil`, never `0`.** Storing zero claims the food has no protein; blank says nobody measured it. Most of this corpus states calories alone, so this is the common case, not the corner.
+4. **Density must land in 15–900 kcal/100g.** Same band the app uses everywhere else. Above 900 is arithmetic rather than food; below 15 a weight has swallowed the calories. Here it's a validation *error*, not a silent skip — see below.
+5. **A name may appear only once per file.** Upserting by name would otherwise keep whichever row happened to be last, silently.
 
-**The web print-outs carry their own yield.** The burst tomato pasta PDF contains `Yield: Serves 4` as structured metadata. That's the answer to the hardest number in the whole pipeline, free, for most of the corpus.
+**The whole file is validated before anything is written; one bad row imports nothing.** This is the decision most worth re-reading later, because the tempting alternative — import the 189 good rows, report the one failure — is worse. The caller is handing over a dataset they believe is clean. A partial import leaves them unable to say what actually landed, and the only recovery is to diff the database against the file they started with. Rejecting the file costs one fix-and-rerun; a partial import costs an audit.
 
-### Phase 2 — the ~40 scans
+`DRY_RUN=1` writes for real inside a transaction and rolls back, rather than simulating. A rehearsal that takes a different code path can only tell you about itself.
 
-Mostly Raquel's, uploaded in one batch on 2012-07-25: scans of handwritten recipe cards. **Do not use Drive's OCR text** — it is bad in exactly the way that matters. On the Lentil Soup card it read `5 minutes` where the card says **45**, turned "2–3 tsp" into `23+sp`, flattened the brace structure grouping ingredients into two cooking stages, and dropped a caret-inserted "Remove from heat" entirely.
+### The one-off merge — local work, deliberately not shipped
 
-**Reading the page image with a vision model recovers all of it**, including ignoring the bleed-through from *Pigs in the Blanket* printed on the reverse. Verified by hand on 2026-08-17, n=1. Pipeline: `gdrive download → magick -density 200 file.pdf[0] page.png → vision`. The `~/Tools/gdrive` CLI on the workstation is already authenticated.
+Two corpora, cleaned separately and merged offline over 2026-08-21.
 
-These are the irreplaceable ones — family recipe cards whose only digital copy is a 2012 scan — so they get a review screen and a slower path. A misread quantity produces confidently wrong macros with nothing to flag it.
+**EasyFit export (123 rows).** Doug marked 56 for import in a spreadsheet, as a new `import` column. **The rows marked no were ignored completely** — they are not in the file and were never costed. Six of the 56 were provably broken and got hand-fixed on his ruling: Prosciutto Slice, Swiss Cheese Slice, Popped Corn, Chicken Dark Meat, Chocolate Almonds, Sauce Deuxelles. Three more were accepted unchanged despite a >10% macro gap.
 
-### Three things to design for
+**Drive folder `0B2s-AeGV6GVJN0ZkYkY1LUdPdU0` (143 files).** Pulled with `~/Tools/gdrive`, 0 failures. 95 carried usable text; 36 were transcribed by reading the page image with vision; 12 more were rescued without vision by matching a text twin; 1 (Apple Pie, 2014) is two words and no recipe. Costed against a local table of 287 ingredients — no USDA client exists in the app, so that table is scaffolding, not product.
 
-1. **No yield on the scans.** The cards say nothing like "serves 4". Two quarts of stock and two cups of lentils is obviously a big pot, but per-100g macros need a real number — so weigh the finished dish once, the same fix as for anything cooked from a recipe.
-2. **Duplicates.** Lara's Lamb & Rice, Berry Bundt Cake, Sandwich Portabello and Lentil Soup each exist as *both* a Google Doc and a PDF.
-3. **Not everything is a dish.** Bourbon Sauce, Thai Curry Peanut Sauce, dry rubs, spice mixes, Horchata, Brandy Alexanders. These want per-tablespoon macros or exclusion, not a serving size.
+**Merged output: 190 rows.** 134 are per-100g figures costed from ingredients; 56 carry the serving weight from EasyFit and so can offer a serving chip. All 190 validated clean through the real importer on the first attempt.
 
-**Done when:** you can log a portion of a recipe you cooked by naming it, and the macros come from the recipe rather than from a fresh guess.
+### The one insight that unblocked it
+
+The old spec said per-100g macros need a real yield, and treated the ~40 yield-less scans as blocked on weighing the finished dish. **That was wrong, and it was blocking roughly 142 of 143 files.** Per-100g needs a *ratio*, not a weighed dish:
+
+```
+kcal_per_100g = total_kcal / (total_raw_g × retention) × 100
+```
+
+Yield cancels out. Retention factors for cooking water loss, by detected method: **0.78** roast/bake, **0.88** simmer, **0.85** fry, **1.0** no-cook. Weighing the dish would still be more accurate — but not weighing it is no longer a reason to skip the file.
+
+### Three corrections to the inventory this package used to carry
+
+- **143 files, not ~141**, and **48 needed vision, not ~40**. Nor are they one 2012-07-25 batch: 36 from 2012-07, a second batch of 7 from 2012-11, and strays from 2015, 2017 and 2023.
+- **Yield coverage is 59 of 95 text-bearing files — 62%, not "most of the corpus".** The old claim was true of web print-outs specifically and got over-generalised to the Docs.
+- **`SeifertFamilyRecipes.docx` is 28 recipes, and 11 of them are typed versions of files sitting in the vision queue as scans.** Splitting it properly took the costed total from 123 to 146. Left unsplit it costed as *one* 390 kcal/100g row, which is the kind of failure that looks like success.
+
+### Calibration against Doug's own figures — the result that matters
+
+Eight recipes exist in both corpora, so the costed density can be checked against the figure Doug crafted himself.
+
+| Recipe | EasyFit | Costed | Ratio |
+|---|---:|---:|---:|
+| Oatmeal Crepes | 390.8 | 382.4 | 0.98 |
+| Chicken Curry Ala Seifert | 129.2 | 166.9 | 1.29 |
+| Chicken Cacciatore | 109.1 | 143.8 | 1.32 |
+| Spicy Curry Lentil Soup | 67.0 | 107.2 | 1.60 |
+| Tortilla Española | 76.7 | 126.9 | 1.65 |
+| Steel Cut Oats | 132.3 | 87.8 | 0.66 |
+| Portobello Sandwich | 156.4 | 353.2 | 2.26 |
+| Fideo | 55.1 | 11.2 | 0.20 |
+
+Median ratio 1.30. Only 2 of 8 within 30%; 2 worse than 2×.
+
+**Neither corpus is reliable at the row level without a human glance, and that is the finding WP4.5-b has to be designed around.** The two 2× misses are not arithmetic errors — they are source-completeness failures. The "Sandwich Portabello" Doc contains only a mayo dressing, not the sandwich. Fideo leaves its pasta and tofu unquantified, so costing silently omitted the calorie-dense half.
+
+And where the two disagree it is genuinely not obvious which is right. **EasyFit's serving weights are unmeasured dropdown defaults** — 20 of 56 sit at exactly 8 oz, and only Corn Tortilla (1.45 oz) breaks the round-ounce pattern. That reverses the assumption recorded under WP7.5: the stated *calories* are the number Doug believed, but the *weight* dividing them is the soft one. His Steel Cut Oats at 132 is probably worse than the costed 88.
+
+Worth knowing before trusting any embedded nutrition table: **Doug's own Chicken Curry recipe lists coconut cream at 110 kcal for a 14.5 oz can**, off by roughly 12×. Correcting it moves his own total from 123 to ~176 — past the 167 that costing produced independently. A stated nutrition panel is a data source, not a free pass.
+
+### In production
+
+`rake 'foods:import[db/seeds/foods.csv]'` on das, 2026-08-21: **190 created, 0 updated.** Zero name collisions with the 29 rows already there, 26 of which are chat-created names carrying no nutrition at all. Production now holds **219 foods, 193 loggable, 59 with a serving chip**.
+
+**Done when:** ✅ you can log a portion of a recipe you cooked by naming it, and the macros come from the recipe rather than from a fresh guess.
+
+### Deliberately not built
+
+- **No `Recipe` model, no ingredient rows.** A recipe is one `foods` row with per-100g macros. `foods` is already per-100g and `meal_entries.quantity_grams` is grams, so a portion is just a weight — no schema change, and WP6b's trigram matching picks it up for free. An ingredient model only earns its keep if you want to scale recipes up and down; don't build it on spec.
+- **No JSON format.** CSV, because the file gets edited in a spreadsheet by a human before it is trusted, and that is the whole point of the review step.
+- **No provenance column.** Explicitly ruled out. Nothing reads it.
+
+---
+
+## WP4.5-b — Importing one recipe at a time *(target: one evening once scoped; not started)*
+
+**Goal: going forward, add a single new recipe without a spreadsheet and without a merge.** Bulk is done and won't recur — 4.5-a was the backlog. This is the steady state.
+
+**Its requirements come from 4.5-a's grunt work**, which is the reason that work was worth doing by hand: 61 edge cases catalogued **on real data, not hypothesised**. The full catalogue lives in the session notes; the decision it forces is which ones to code for.
+
+### Code for these — they are common and they are silent when they go wrong
+
+| Case | Evidence |
+|---|---|
+| **Unquantified ingredients must halt, never be dropped** | Fideo names "Tiny pasta" and "Tofu, cubed" with no amount, costed to 11 kcal/100g — a 5× under-count with nothing flagging it. 20 of 117 recipes had this. **The single most dangerous case in the corpus.** |
+| Dual metric/imperial with no space | `400g/14 oz canned crushed tomato` parsed as 400 *tomatoes* — 49,200 g. Chicken Cacciatore went 25 → 144 kcal/100g on this one fix. |
+| A weight in parentheses overrides a count | "4 chicken thighs (1 kg / 2 lb)" is 1 kg, not 4 × a guessed thigh. |
+| Leading list numbers read as quantities | "7. 1 sliced large white cooking onion" → **7 onions**. The same recipe costed 170 vs 68 in its two copies. |
+| Cup weights by ingredient class | A flat 240 g/cup (water) applies to 72 of 287 entries wrongly; "5 cups diced chicken" came out 71% high. Solids default 140, generic 150. |
+| Discarded ingredients | Shrimp Cocktail's brine, Norinj Pilau's three changes of boiling water. Costing them is pure invention. |
+| Method steps and nutrition panels leaking into the ingredient block | Filtering lifted the match rate 83% → 92%. Panels are the dangerous half: numbers beside the word "protein" match and inject calories. |
+| The source states its own nutrition | Banana-Rum Souffle gives "Calories 231" per serving. Skip costing entirely. |
+| The source states a serving *weight* | "10 lava cakes (4 oz servings)" — rarer and better than a yield count. |
+| Retention + the ratio formula | See 4.5-a. This is what makes a yield-less recipe costable. |
+| The 15–900 plausibility band | It is the only thing that caught the corrupt Berry Bundt Cake, at 909. |
+
+### Flag for a human — do not try to resolve automatically
+
+Coverage below 80% of ingredient lines; **any** unquantified ingredient; handwritten overrides, strikethroughs and caret insertions on a scan; and the two cases that cost out *plausibly* while being wrong:
+
+- **A file containing only one component of the dish it names.** "Sandwich Portabello" is the dressing alone. Nothing about the output looks suspicious.
+- **A text twin that is worse than the scan.** The rescue logic assumed a typed Doc supersedes a 2012 scan. For Berry Bundt Cake the reverse held — the Doc is a corrupt OCR dump of the clipping (`125 cups sugar` for 1⅔, `22 sticks butter` for 2½, `TY2E2h cups flour`). It even states a yield, so every heuristic classed it "costable unattended".
+
+### Out of scope — 4.5-b is explicitly one recipe at a time
+
+Compilation files, cookbook pages holding 2–4 recipes, recipes defined by reference ("make the dough for Russian Teacakes above, omitting nuts"), and variants that aren't separate recipes. These are bulk problems and bulk is finished. If one arrives, split it by hand and import the parts.
+
+Also a human call, not a code path: **not everything is a dish.** Bourbon Sauce, Thai Curry Peanut Sauce, dry rubs, spice mixes, Horchata, Brandy Alexanders want per-tablespoon macros or exclusion, not a serving size.
+
+### The USDA question, measured rather than guessed
+
+Of 238 unmatched ingredient lines in the one-off, the large majority were **near-misses on entries already in the local table** ("shaved Parmesan" vs "parmesan cheese", "EVOO", "vegetable broth") or method steps leaking in — not missing nutrition data. USDA would have needed the same alias layer and adds a verification risk of its own: *Butter, whipped* against *Butter, salted* is a 20% error with nothing to flag it. **It was not worth it for the one-off.**
+
+**It is worth it here.** `Food::SOURCES` already carries a `usda` slot, unused. An ongoing import that costs one recipe at a time can afford a real lookup and a moment of human confirmation per ingredient, which is exactly what the one-off could not.
+
+### Open before this starts
+
+1. **What is the input?** A file is 4.5-a's answer and it is the wrong one here. In practice a new recipe arrives as a URL, a photo of a card, or text pasted from a message. Pick one to build first — the evidence above says the URL case is by far the cleanest, and the photo case is the one already proven to work via vision.
+2. **Where does the review happen?** WP4.4's food screen shows a row and portions it, but nothing shows a *proposed* row with its ingredient breakdown and lets you correct a quantity before it is saved. That screen is most of this package.
+3. **Retire `Foods::EasyfitImport`?** It is superseded — the EasyFit rows reached production inside `db/seeds/foods.csv`, through `Foods::CsvImport`. It plus `db/seeds/easyfit_foods.csv` and its tests are now dead weight, and two importers in one namespace is a question the next reader has to answer. Recommend deleting all three; kept for now because nothing forces the call.
+
+**Done when:** you can point the app at one new recipe, see what it thinks the ingredients and per-100g figures are, correct it, and save it — without touching a spreadsheet.
 
 ---
 
@@ -472,7 +574,7 @@ Where servings come from, in order of how much they can be trusted:
 | Source | Field | Notes |
 |---|---|---|
 | OpenFoodFacts | `serving_quantity` / `serving_size` | Off the label. Free, and already in the response — it only ever needed asking for |
-| EasyFit export | `serving_g` / `serving_oz` | The portion Doug crafted, which is the whole reason that corpus is worth importing |
+| EasyFit export | `serving_g` / `serving_oz` | The portion Doug crafted, which is the whole reason that corpus is worth importing — **but see WP4.5-a: measured across all 56 imported rows these are round-ounce dropdown defaults, so the calories are the crafted number and the weight is the soft one** |
 | Manual adopt form | typed | Optional; the screen says so |
 | Anything else | — | Stays in grams, exactly as before |
 
@@ -498,7 +600,7 @@ So speech already works, at zero cost and zero engineering, and those entries ar
 
 1. **One tap instead of summoning a keyboard**, which is the actual friction when your hands are busy.
 2. **Hands-free while cooking** — dictation still needs you to tap into a text field first.
-3. **Vocabulary biasing that improves as `foods` grows.** This is the only one keyboard dictation can never match, and it's also the one with the least evidence behind it so far: n=4, all common foods. It will matter more for the WP4.5 recipe names than it does for a cheeseburger.
+3. **Vocabulary biasing that improves as `foods` grows.** This is the only one keyboard dictation can never match, and it's also the one with the least evidence behind it so far: n=4, all common foods. It will matter more for the WP4.5-a recipe names than it does for a cheeseburger — and as of 2026-08-21 there are 190 of them in production, so this is finally testable rather than hypothetical.
 4. **Keeping the audio** (§6), which is genuinely invaluable while tuning and is simply not available through the keyboard.
 
 **Two consequences for the bake-off in §2.** Keyboard dictation is now the baseline to beat, not a fallback — run the clip through it alongside the paid providers and require a provider to be *visibly* better before taking the dependency. And the clip should be a hard one: a recipe name, a mumble, a self-correction, background kitchen noise. Four clean sentences from a quiet room will not separate the candidates.
@@ -578,11 +680,15 @@ WP1 skeleton+auth+manual ──▶ WP2 deploy+PWA ──▶ WP3 backups
                                    │              read the foods table, so imports
                                    │              were worse than useless)
                                    ▼
-                    WP7 barcode ──▶ WP4.4 reach a food ──▶ WP4.5 recipe import (Drive)
+                    WP7 barcode ──▶ WP4.4 reach a food ──▶ WP4.5-a bulk import ✅
                             │       (split out of WP4.5 2026-08-19:            │
                             │        141 imports need a screen to be           ▼
                             │        checked on before they exist)      WP5 VOICE ◀── ergonomics,
                             │                                                          not capability
+                            │
+                            │                     WP4.5-b one recipe at a time ──▶ unscheduled;
+                            │                     needs an input decision and a review screen
+                            │
                             └──▶ WP8 weight+trends ──▶ WP9 calibration
                                                            │
                                                      WP10 CSV export
@@ -606,6 +712,9 @@ Realistic total: **10–14 evenings** to the end of WP6, which is the version yo
 1. **`users.name` and email for your wife** — the seeds currently fall back to `Partner` / `partner@dseifert.net`. Set `PARTNER_NAME` and `PARTNER_EMAIL` when you seed production, or edit `db/seeds.rb`.
 2. **DNS A record** for `macros.dseifert.net` → das. The one WP2 blocker with lead time.
 3. **The PG 18 cluster's port on das** — falls out of your install; write it here when you know it.
+4. **Re-confirm the Pancakes ruling** (raised 2026-08-21). You ruled EasyFit's "Pancakes Alton Brown" the same dish as `Pancakes.pdf`, but the premise I gave you was wrong: that PDF is not a handwritten card and carries no Alton Brown attribution — it is "A Good Pancake Recipe" from `http://goon/recipes/pancakes.html`, printed 2005. The ruling may still be right; it was made on bad information.
+5. **Sauce Deuxelles is worth a second look.** You raised its density to 130 by judgement, before the actual recipe turned up. `Fondu Sauces.pdf` contains Sauce Duxelles — 2 T butter plus 1 T melted against 3 cups mushrooms and 10.5 oz broth — which costs out near **85–105**, between your original 67 and the 130 you chose.
+6. **"Something else I need to consider"** — you flagged this on 2026-08-21 during the collision walk-through and deferred it. Recorded here so it doesn't evaporate.
 
 ---
 

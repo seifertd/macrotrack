@@ -40,7 +40,8 @@ class PlanControllerTest < ActionDispatch::IntegrationTest
     anchors = css_select(".toc__link").map { |link| link["href"].delete_prefix("#") }
 
     assert_operator anchors.size, :>=, 10
-    assert_includes anchors, "wp4-5", "decimal package numbers must get a usable anchor"
+    assert_includes anchors, "wp7-5", "decimal package numbers must get a usable anchor"
+    assert_includes anchors, "wp4-5-a", "a hyphenated sub-package must get one too"
 
     anchors.each do |anchor|
       assert_select "h2##{anchor}, h3##{anchor}", 1, "no heading for nav entry ##{anchor}"
@@ -87,12 +88,24 @@ class PlanControllerTest < ActionDispatch::IntegrationTest
 
   # Exactly one package can be next, and it must be the first unfinished one the build
   # order calls for — not the first unfinished heading in the document.
+  #
+  # Derived from the document rather than naming a package, because the answer moves
+  # every time one gets finished: this asserted WP4.5 until 2026-08-22, when that
+  # package was split into a finished 4.5-a and an unscheduled 4.5-b.
   test "next up is the first unfinished package in build order" do
     sign_in_as users(:doug)
 
     get "/plan"
 
+    source = PlanDocument::SOURCE.read
+    written_up = source.scan(/^\#{2,3}\s+WP(#{PlanDocument::PACKAGE_NUMBER})\s+—\s+(.*)$/o).to_h
+    expected = source[PlanDocument::BUILD_ORDER, 1]
+      .scan(/WP(#{PlanDocument::PACKAGE_NUMBER})/o).flatten
+      .find { |number| written_up[number] && written_up[number].exclude?("✅") }
+
     assert_select ".chip--next", 1
-    assert_select "h2#wp4-5 .chip--next", 1
+
+    heading = css_select("h2, h3").find { |node| node.css(".chip--next").any? }
+    assert_equal "WP#{expected}", heading.css(".wp__text").text[/\AWP#{PlanDocument::PACKAGE_NUMBER}/o]
   end
 end
