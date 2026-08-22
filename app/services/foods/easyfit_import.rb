@@ -5,8 +5,10 @@ module Foods
   #
   # Selected, not all of it. Every value here is divided by `serving_g` to reach the
   # per-100g shape `foods` wants, so a serving weight that was never real yields a
-  # confidently wrong density with nothing on the row to flag it. Importing by
-  # hand-picked name keeps a person in the loop.
+  # confidently wrong density with nothing on the row to flag it. Keeping a person in
+  # the loop is the point, so nothing imports itself: rows arrive either named one at a
+  # time by `import`, or marked `import=yes` in the CSV and pulled in by `import_selected`.
+  # The column is Doug's own pass over the 123 rows, made in a spreadsheet — 56 yes.
   #
   # **The stated calories are the anchor, not the macros.** This reverses the original
   # call, which derived calories from 4P+4C+9F and discarded the export's own figure.
@@ -32,8 +34,20 @@ module Foods
 
     class ImplausibleRow < StandardError; end
     class UnknownFood < StandardError; end
+    class MissingSelection < StandardError; end
 
-    Imported = Struct.new(:food, :serving_g, :stated_calories, :macro_calories, :created, keyword_init: true) do
+    Selection = Struct.new(:imported, :rejected, keyword_init: true) do
+      def created = imported.select(&:created)
+      def updated = imported.reject(&:created)
+      def suspect = imported.select(&:macros_suspect?)
+    end
+
+    # A row the selected import refused. Bulk mode collects these instead of raising:
+    # one placeholder serving weight should not withhold the other 55 rows.
+    Rejected = Struct.new(:name, :message, keyword_init: true)
+
+    Imported = Struct.new(:food, :serving_g, :stated_calories, :macro_calories, :created,
+                          :drive_file_name, keyword_init: true) do
       # How far the export's macros drift from its own stated calories, as a percentage
       # of the stated figure. Surfaced per row so a big gap gets a second look.
       def calorie_gap_percent
@@ -49,11 +63,52 @@ module Foods
     end
 
     def self.rows(path: PATH)
-      CSV.read(path, headers: true).map { |row| row.to_h.transform_keys(&:to_s) }
+      CSV.read(path, headers: true).map { |row| row.to_h.transform_keys { |key| key.to_s.downcase } }
     end
 
     def self.names(path: PATH)
       rows(path: path).map { |row| row["name"] }
+    end
+
+    # The rows Doug marked `import=yes`. Anything else — `no`, blank, a value the
+    # spreadsheet invented — is not a yes, because the failure mode of guessing here is
+    # importing a row nobody vetted.
+    def self.selected(path: PATH)
+      all = rows(path: path)
+      raise MissingSelection, "#{path.basename} has no `import` column" unless all.first&.key?("import")
+
+      all.select { |row| row["import"].to_s.strip.downcase == "yes" }
+    end
+
+    # Bulk counterpart to `import`. Collects rejections rather than raising them: a run
+    # of 56 rows should not be withheld because one serving weight is a placeholder, and
+    # the caller needs to see which rows landed as much as which did not. `import` still
+    # raises, because a row named explicitly and skipped quietly would be a lie.
+    #
+    # `dry_run` runs the real thing and rolls it back, rather than simulating it. A
+    # rehearsal that takes a different code path can only tell you about itself.
+    def self.import_selected(path: PATH, dry_run: false)
+      return collect_selected(path: path) unless dry_run
+
+      result = nil
+      Food.transaction do
+        result = collect_selected(path: path)
+        raise ActiveRecord::Rollback
+      end
+      result
+    end
+
+    def self.collect_selected(path: PATH)
+      imported = []
+      rejected = []
+
+      selected(path: path).each do |row|
+        imported << import_row(row)
+      rescue ImplausibleRow => e
+        rejected << Rejected.new(name: row["name"], message: e.message)
+      end
+
+      Selection.new(imported: imported, rejected: rejected)
     end
 
     # Idempotent: re-running updates the existing row rather than duplicating it, so the
@@ -100,7 +155,8 @@ module Foods
 
       Imported.new(
         food: food, serving_g: serving_g, created: created,
-        stated_calories: stated_calories, macro_calories: macro_calories
+        stated_calories: stated_calories, macro_calories: macro_calories,
+        drive_file_name: row["drive_file_name"].presence
       )
     end
 

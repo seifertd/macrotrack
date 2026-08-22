@@ -83,20 +83,21 @@ class Foods::EasyfitImportTest < ActiveSupport::TestCase
   end
 
   test "refuses a row whose density is physically impossible" do
-    # 3.5g of swiss cheese for 90 kcal is 2571 kcal/100g. The weight is a placeholder,
-    # and importing it would put a confidently wrong density in front of every future
-    # estimate with nothing on the row to flag it.
+    # 3.5g for 90 kcal is 2571 kcal/100g. The weight is a placeholder, and importing it
+    # would put a confidently wrong density in front of every future estimate with
+    # nothing on the row to flag it. Held against a fixture rather than the seed file:
+    # the shipped dataset is hand-cleaned and is supposed to have no such row left.
     error = assert_raises Foods::EasyfitImport::ImplausibleRow do
-      Foods::EasyfitImport.import("Swiss Cheese Slice")
+      Foods::EasyfitImport.import("Placeholder Weight", path: file_fixture("easyfit_broken_rows.csv"))
     end
 
     assert_match(/placeholder/, error.message)
-    assert_nil Food.find_by("lower(name) = ?", "swiss cheese slice")
+    assert_nil Food.find_by("lower(name) = ?", "placeholder weight")
   end
 
   test "refuses a row whose density is implausibly low" do
     assert_raises Foods::EasyfitImport::ImplausibleRow do
-      Foods::EasyfitImport.import("Riced Cauliflower & Broccoli")
+      Foods::EasyfitImport.import("Swallowed Calories", path: file_fixture("easyfit_broken_rows.csv"))
     end
   end
 
@@ -106,6 +107,91 @@ class Foods::EasyfitImportTest < ActiveSupport::TestCase
     end
 
     assert_match(/Nonexistent Smoothie/, error.message)
+  end
+
+  test "selected picks up only the rows marked yes" do
+    selected = Foods::EasyfitImport.selected
+
+    assert_equal 56, selected.length
+    assert_includes selected.map { |row| row["name"] }, "Magic Juice"
+    assert_not_includes selected.map { |row| row["name"] }, "Acai Puree", "that row is marked no"
+    assert_empty selected.reject { |row| row["import"] == "yes" }
+  end
+
+  test "selected says so when the column is missing rather than importing nothing" do
+    path = file_fixture("easyfit_no_import_column.csv")
+
+    error = assert_raises Foods::EasyfitImport::MissingSelection do
+      Foods::EasyfitImport.selected(path: path)
+    end
+
+    assert_match(/import/, error.message)
+  end
+
+  test "anything that is not yes is not a yes" do
+    path = file_fixture("easyfit_odd_flags.csv")
+
+    assert_equal [ "Magic Juice" ], Foods::EasyfitImport.selected(path: path).map { |row| row["name"] },
+      "blank, NO, and maybe are all withheld — guessing here imports a row nobody vetted"
+  end
+
+  test "every selected row in the shipped dataset imports" do
+    result = Foods::EasyfitImport.import_selected
+
+    assert_equal 56, result.imported.length
+    assert_empty result.rejected,
+      "the seed file is hand-cleaned; a rejection here means a row regressed, not that the gate is wrong"
+    assert_includes result.imported.map { |r| r.food.name }, "Magic Juice"
+  end
+
+  test "a bulk run collects an implausible row instead of withholding the rest" do
+    result = Foods::EasyfitImport.import_selected(path: file_fixture("easyfit_broken_rows.csv"))
+
+    assert_equal [ "Magic Juice" ], result.imported.map { |r| r.food.name },
+      "two bad rows must not cost the good one"
+    assert_equal [ "Placeholder Weight", "Swallowed Calories" ], result.rejected.map(&:name)
+  end
+
+  test "a bulk run reports which rows have a doubtful macro split" do
+    result = Foods::EasyfitImport.import_selected
+
+    assert_includes result.suspect.map { |r| r.food.name }, "Magic Juice"
+    assert_not_includes result.suspect.map { |r| r.food.name }, "Brie"
+    assert result.suspect.length < result.imported.length, "the tolerance is not flagging everything"
+  end
+
+  test "a bulk run is idempotent" do
+    first = Foods::EasyfitImport.import_selected
+    assert_equal first.imported.length, first.created.length
+
+    assert_no_difference -> { Food.count } do
+      second = Foods::EasyfitImport.import_selected
+      assert_empty second.created
+      assert_equal first.imported.length, second.updated.length
+    end
+  end
+
+  test "a dry run reports exactly what a real run would do, and keeps none of it" do
+    rehearsal = nil
+
+    assert_no_difference -> { Food.count } do
+      rehearsal = Foods::EasyfitImport.import_selected(dry_run: true)
+    end
+
+    assert_equal 56, rehearsal.imported.length
+    assert_empty rehearsal.rejected
+
+    real = Foods::EasyfitImport.import_selected
+    assert_equal rehearsal.imported.map { |r| r.food.name }.sort, real.imported.map { |r| r.food.name }.sort
+    assert_equal rehearsal.imported.length, real.created.length, "the rehearsal did not leave rows behind"
+  end
+
+  test "carries the hand-matched Drive recipe through, for WP4.5 to reconcile against" do
+    result = Foods::EasyfitImport.import("Moussaka").sole
+
+    assert_equal "Moussaka.pdf", result.drive_file_name
+    assert_nil Foods::EasyfitImport.import("Magic Juice").sole.drive_file_name,
+      "no recipe in the folder corresponds to it"
   end
 
   test "the export is readable and every row has a name" do
