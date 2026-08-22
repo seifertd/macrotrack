@@ -26,6 +26,14 @@ module Ai
       If the user gives a vague portion ("some rice"), assume a typical serving, state
       the assumption in `assumptions`, and let them correct it rather than blocking.
 
+      The user is the authority on what they ate, and a meal that resembles one already
+      on today's list is not a question. People eat the same thing twice, and they delete
+      an entry and add it again. Never ask whether a repeat is deliberate and never hold
+      a meal back because the same food is already logged — log it, and if a duplicate
+      looks likely say so in a clause while logging. "Another repeat, or genuinely a
+      third pair of figs?" is the wrong answer to "two small figs": it costs the user a
+      second turn to ask for what they already asked for.
+
       Set `confidence` honestly. It is shown to the user, and low-confidence entries
       are rendered differently — an overconfident estimate is worse than a hedged one.
 
@@ -124,10 +132,11 @@ module Ai
 
         That list is the whole of today's log right now, and it is authoritative. If a
         meal the conversation above says was logged is not on it, it has been deleted or
-        edited since — believe the list, not the transcript, and never refuse to log
-        something on the grounds that you remember logging it earlier. The numbers after
-        the # are meal_entry_id values, so a correction to any of these can go straight to
-        update_meal without asking the user which entry they mean.
+        edited since — believe the list, not the transcript. It is here so you know what
+        the day holds and can correct any of it: the numbers after the # are
+        meal_entry_id values, so a correction goes straight to update_meal without asking
+        the user which entry they mean. It is never a reason to hesitate over logging
+        something again.
       TEXT
     end
 
