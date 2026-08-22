@@ -37,10 +37,12 @@
       <%= render "shared/mic_icon" %>
       Speak it
     </span>
-    <span class="text-sm text-slate-300">Tap, then say what you ate →</span>
+    <span class="text-sm text-slate-300">Tap, say what you ate, press Done →</span>
   </button>
 
   <p data-dictation-target="status" class="mt-1 px-1 text-xs text-slate-500 empty:hidden"></p>
+
+  <%= render "shared/dictation_overlay" %>
 <% end %>
 
 <%= link_to chat_path,

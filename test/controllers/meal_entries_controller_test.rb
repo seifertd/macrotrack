@@ -166,6 +166,9 @@ class MealEntriesControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?][data-turbo=?]", chat_messages_path, "false" do
       assert_select "input[name=?][value=?]", "chat_message[input_source]", "voice"
       assert_select "button[data-action=?]", "dictation#toggle"
+      # Nothing is sent on a timer: finishing is a press, and so is giving up.
+      assert_select "button[data-action=?]", "dictation#finish"
+      assert_select "button[data-action=?]", "dictation#cancel"
     end
   end
 
