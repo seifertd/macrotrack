@@ -4,7 +4,7 @@ Companion to `macro-tracker-design.md` (rev. 3). That doc says *what and why*; t
 
 Ordered so the app is on both phones by the end of WP2, sharing meals between the two of us by the end of WP6a, logging by conversation by the end of WP4, and logging by voice by the end of WP5-a.
 
-**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → **WP7** → **WP7.5** → **WP4.4** → **WP4.5-a** → **WP5-a** → WP8 → WP9 → WP10.
+**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → **WP7** → **WP7.5** → **WP4.4** → **WP4.5-a** → **WP5-a** → **WP5-b** → WP8 → WP9 → WP10.
 
 **Next: WP8** — weight + trends. WP9 cannot start until it has history to fit. **WP4.5-b is not scheduled** — it has three open questions and no deadline, because the backlog it would have served is already imported.
 
@@ -668,9 +668,33 @@ Small, because WP4 already built everything downstream of a transcript and left 
 
 **Done when:** ✅ you have logged dinner from the kitchen, with wet hands, in one tap — and the entry says `voice`.
 
-### WP5-b — Hosted STT, and keeping the audio *(unscheduled; needs evidence from 5-a)*
+### WP5-b — Self-hosted STT, and keeping the audio ✅ *done 2026-08-22*
 
-WP5 as it was originally written. It stays on the shelf until 5-a has had a week of real use and at least one of these is true:
+**Result: 270 tests + 7 JavaScript tests, 0 failures, rubocop and brakeman clean.** Not a week after 5-a, but the same afternoon: the second of its three triggers fired outright. The browser's recogniser could not be made to hear a sentence with a pause in it, so 5-b stopped being optional and became the only route.
+
+**It is not hosted.** §2 settled on Deepgram Nova-3 and the bill would have been 32 cents a month, so cost was never the obstacle — but self-hosting turned out to cost less than that in every sense, including effort. `cmake` installs into `~/opt` as a userspace binary, whisper.cpp decodes audio itself through miniaudio, and the browser converts to the 16 kHz mono wav whisper reads. **No signup, no card, no third party holding the audio, and — the surprise — no `sudo` anywhere.** das has no ffmpeg and needs none. §6's one-method interface is built as specified, so a hosted provider still drops in behind it if that ever changes.
+
+**The bake-off, run against whisper.cpp instead of four providers.** One 21-second clip, the hard case §2 asks for — a recipe name from our own corpus, a self-correction, spoken portions, a cooking fat. `tiny.en` 2.2s, `base.en` 3.9s, `small.en` 12.0s, and all three got every word. That made `base.en` look obvious.
+
+**The first real recording said otherwise, and that is the finding worth keeping.** Through the app, `base.en` heard *"ITA meatballs"* for IKEA. The obvious fix — feeding the `foods` table in as whisper's initial prompt, which is exactly the vocabulary biasing §6 designed — **made it worse**: it did not recover the name, and it silently dropped *"about 10 of them"*. A wrong count is a wrong calorie figure; a wrong name is something the model repairs from context and the hints block is built to catch. So there is no prompt, and `Stt::Whisper` says why, so nobody adds one back on the reasoning that looked sound in the morning.
+
+`small.en`, no prompt, gets every word. Greedy decoding and flash attention then took it from 11.8s to about 8s with byte-identical transcripts; quantisation was the obvious thing to try first and did nothing, because on two cores this is compute-bound rather than memory-bound.
+
+**§6's keep-the-audio rule paid for itself within the hour.** None of the paragraph above could have been diagnosed without the recording still being on disk — "the model heard ITA" would have been a guess about capture quality or model size, and the guess would have been the prompt, which would have made it quietly worse.
+
+**Two fixtures, both permanent:** `ramble.mp3`, made for the bake-off, and `meatballs.wav`, which is somebody logging their dinner through the real pipeline and is the case that separates the two models.
+
+**What it costs.** About eight seconds of "Transcribing…" after you press Done, against the browser recogniser's nothing. §1 is why that is the right side of the line: you press Done and put the phone down, so it is elapsed time rather than the hands-and-attention time this app is measured on. Transcription runs inline rather than in a job — it is eight seconds of a Puma thread, but the transcript is the thing being waited for, and a job would mean a second broadcast, a second failure path and a spinner that cannot say which half it is waiting on. Revisit if two people ever record at the same moment.
+
+**Still open, and deliberately not fixed here:** `script/backup_production_db.sh` is a `pg_dump` and the recordings live in `shared/storage`, so the audio is not backed up. That is WP3's file, and roughly 700KB a recording.
+
+**Done when:** ✅ you've logged dinner by voice, from the kitchen, with wet hands, while the screen locked — and three weeks later you can still hear what you said.
+
+---
+
+### What 5-b was going to be, kept for the record
+
+It stayed on the shelf pending a week of real use and any one of these:
 
 - **Recipe names come back mangled** often enough to count. 190 of them in production, so this is measurable rather than hypothetical — and it is claim 3 above finally facing evidence.
 - **The recognizer won't run** in the standalone PWA on one of the two phones, which turns 5-b from optional into the only route.
@@ -688,7 +712,7 @@ Then it is the original build:
 
 **How this gets tested** — steps 1, 3 and 6 are the server side and get ordinary controller and service tests: `Stt::Fake` and Faraday's test adapter give you the seams without a network call, and the bake-off clip from step 2 is the fixture. Steps 4, 5 and the waveform are browser-only and get validated by hand — the wake-lock case has to be driven physically, and no rig would have caught it anyway.
 
-**Done when:** you've logged dinner by voice, from the kitchen, with wet hands, while the screen locked — and three weeks later you can still hear what you said.
+*(That list is what shipped, with §6's staged feedback and the wake lock intact; only the provider changed.)*
 
 ---
 
@@ -759,9 +783,9 @@ WP1 skeleton+auth+manual ──▶ WP2 deploy+PWA ──▶ WP3 backups
                             │                                             no server
                             │                                                 │
                             │                                                 ▼
-                            │                                           WP5-b hosted STT ──▶ unscheduled;
-                            │                                           + keep the audio     only if 5-a
-                            │                                                                proves it short
+                            │                                           WP5-b self-hosted ✅ ◀── whisper.cpp
+                            │                                           STT + the audio         on das; 5-a
+                            │                                                                   proved it short
                             │
                             │                     WP4.5-b one recipe at a time ──▶ unscheduled;
                             │                     needs an input decision and a review screen
