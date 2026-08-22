@@ -1,5 +1,0 @@
-import,name,category,serving_g,serving_oz,calories_kcal,protein_g,carbs_g,fat_g,alt_units,ingredients,similar_food
-yes,Magic Juice,Drinks,226.8,8.0,163.0,8.0,20.0,8.0,,,Protein Shake +Milk
-NO,Brie,Dairy,28.4,1.0,70.0,4.0,0.0,6.0,,,Limburger Cheese
-,Concha,Bread & Nuts,113.4,4.0,344.0,7.8,52.3,11.2,,,Almond Bread
-maybe,Poke,Fish,226.8,8.0,250.0,25.0,10.0,12.0,,,Sashimi
