@@ -34,6 +34,8 @@ Rails.application.routes.draw do
   # The chat is one thread per user, so it's a singular resource with no id in the URL.
   get "chat" => "chats#show", as: :chat
   post "chat/messages" => "chat_messages#create", as: :chat_messages
+  # WP5-b: a recording, transcribed on our own box, entering the same thread as a typed turn.
+  post "chat/voice" => "voice_entries#create", as: :voice_entries
   post "chat/suggestions/:id/accept" => "chat_suggestions#accept", as: :accept_chat_suggestion
   post "chat/suggestions/:id/decline" => "chat_suggestions#decline", as: :decline_chat_suggestion
 

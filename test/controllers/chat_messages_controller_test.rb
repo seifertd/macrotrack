@@ -19,27 +19,6 @@ class ChatMessagesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "a bowl of chili", message.text
   end
 
-  # WP5-a. meal_entries.source is copied from this, so it is the whole of voice
-  # attribution — and it is the plan's long-standing complaint that a dictated meal
-  # landed as "text" because as far as the app was concerned it had been typed.
-  test "a dictated turn is stamped as one" do
-    post chat_messages_path,
-      params: { chat_message: { text: "two ikea meatballs", input_source: "voice" } },
-      as: :turbo_stream
-
-    assert_equal "voice", Message.order(:created_at).last.input_source
-  end
-
-  test "a turn can only claim one of the two sources it might have come from" do
-    [ "manual", "barcode", "", nil ].each do |claimed|
-      post chat_messages_path,
-        params: { chat_message: { text: "a bowl of chili", input_source: claimed } },
-        as: :turbo_stream
-
-      assert_equal "text", Message.order(:created_at).last.input_source, claimed.inspect
-    end
-  end
-
   test "the turbo stream appends the message, shows the indicator, and clears the field" do
     post chat_messages_path, params: { chat_message: { text: "two eggs" } }, as: :turbo_stream
 

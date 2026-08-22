@@ -20,30 +20,30 @@
   <% end %>
 </p>
 
-<%# WP5-a. The tap that starts the recogniser has to be the gesture the browser sees, so
-    this listens here rather than sending you to the chat screen to tap again — which is
-    the whole point, one tap from this screen to a logged meal. The post is deliberately
-    not a Turbo submit: it lands on the chat screen by ordinary redirect, with the answer
-    already on its way. Where the browser has no recogniser the button removes itself and
-    the row below is what you wanted anyway. %>
-<%= form_with url: chat_messages_path, data: { turbo: false, controller: "dictation" } do |form| %>
-  <%= form.hidden_field "chat_message[text]", data: { dictation_target: "field" } %>
-  <%= form.hidden_field "chat_message[input_source]", value: "voice",
-        data: { dictation_target: "source" } %>
+<%# WP5-b. One tap from this screen to a recording, and the post is deliberately not a
+    Turbo submit: it lands on the chat screen by ordinary redirect with the transcript
+    already there. Where the browser cannot record, the button removes itself and the row
+    below is what you wanted anyway. %>
+<div data-controller="dictation">
+  <%= form_with url: voice_entries_path, multipart: true,
+        data: { turbo: false, dictation_target: "form" } do |form| %>
+    <%= form.file_field "voice_entry[audio]", accept: "audio/*", class: "hidden",
+          data: { dictation_target: "audio" } %>
 
-  <button type="button" data-dictation-target="button" data-action="dictation#toggle"
-          class="mt-4 flex w-full items-center justify-between rounded-xl bg-slate-900 px-4 py-3 text-left text-white">
-    <span class="flex items-center gap-2 font-semibold">
-      <%= render "shared/mic_icon" %>
-      Speak it
-    </span>
-    <span class="text-sm text-slate-300">Tap, say what you ate, press Done →</span>
-  </button>
+    <button type="button" data-dictation-target="button" data-action="dictation#toggle"
+            class="mt-4 flex w-full items-center justify-between rounded-xl bg-slate-900 px-4 py-3 text-left text-white">
+      <span class="flex items-center gap-2 font-semibold">
+        <%= render "shared/mic_icon" %>
+        Speak it
+      </span>
+      <span class="text-sm text-slate-300">Tap, say what you ate, press Done →</span>
+    </button>
+  <% end %>
 
   <p data-dictation-target="status" class="mt-1 px-1 text-xs text-slate-500 empty:hidden"></p>
 
   <%= render "shared/dictation_overlay" %>
-<% end %>
+</div>
 
 <%= link_to chat_path,
       class: "mt-2 flex items-center justify-between rounded-xl border border-slate-300 bg-white px-4 py-3" do %>

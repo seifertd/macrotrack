@@ -1,0 +1,25 @@
+<%# §6's staged feedback, which finally has something to stage: the transcript lands as
+    your own message the moment it is out of whisper, and only then does the model's turn
+    begin. One spinner covering both halves would hide which one you are waiting on. %>
+<%= turbo_stream.append "messages" do %>
+  <%= render "messages/message", message: @message, user: Current.user %>
+<% end %>
+
+<% if @failure %>
+  <%= turbo_stream.append "messages" do %>
+    <%= render "chats/failure", message: @failure %>
+  <% end %>
+<% elsif @suggestion %>
+  <%# Retrieval answered it, so nothing is thinking and no parse was paid for. %>
+  <%= turbo_stream.append "messages" do %>
+    <%= render "messages/message", message: @suggestion, user: Current.user %>
+  <% end %>
+<% elsif @message.input_source == "voice" %>
+  <%= turbo_stream.replace "typing_indicator" do %>
+    <%= render "chats/typing_indicator", visible: true %>
+  <% end %>
+<% end %>
+
+<%= turbo_stream.replace "composer" do %>
+  <%= render "chats/composer" %>
+<% end %>

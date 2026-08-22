@@ -1,27 +1,33 @@
-<%# Replaced wholesale on submit, which is what empties the field — no JS needed. %>
-<%= form_with url: chat_messages_path, id: "composer", data: { controller: "dictation" } do |form| %>
+<%# Two forms, side by side: one posts what you typed, the other posts what you recorded.
+    They are separate because they are separate things — a form cannot nest, and a text
+    field cannot carry a wav. The wrapper holds the id so a turbo replace after a message
+    re-renders both, and the dictation controller spans them. %>
+<div id="composer" data-controller="dictation">
   <p data-dictation-target="status" class="px-1 pb-1 text-xs text-slate-500 empty:hidden"></p>
 
   <div class="flex gap-2">
-    <%# Says "text" until the recogniser has actually heard something — see dictation#send. %>
-    <%= form.hidden_field "chat_message[input_source]", value: "text",
-          data: { dictation_target: "source" } %>
-    <%= form.text_field "chat_message[text]",
-          autocomplete: "off",
-          autofocus: true,
-          placeholder: "What did you eat?",
-          data: { dictation_target: "field" },
-          class: "min-w-0 flex-1 rounded-full border border-slate-300 px-4 py-2.5 text-base focus:border-slate-500 focus:outline-none" %>
-    <%# Removes itself where the browser has no recogniser, which is why there is no
-        explanatory copy: the field next to it is the answer. %>
-    <button type="button" data-dictation-target="button" data-action="dictation#toggle"
-            aria-label="Dictate"
-            class="shrink-0 rounded-full border border-slate-300 px-3.5 py-2.5 text-slate-700 hover:bg-slate-50">
-      <%= render "shared/mic_icon" %>
-    </button>
-    <%= form.submit "Send",
-          class: "shrink-0 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-700" %>
+    <%= form_with url: chat_messages_path, class: "flex min-w-0 flex-1 gap-2" do |form| %>
+      <%= form.text_field "chat_message[text]",
+            autocomplete: "off",
+            placeholder: "What did you eat?",
+            class: "min-w-0 flex-1 rounded-full border border-slate-300 px-4 py-2.5 text-base focus:border-slate-500 focus:outline-none" %>
+      <%= form.submit "Send",
+            class: "shrink-0 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-700" %>
+    <% end %>
+
+    <%= form_with url: voice_entries_path, multipart: true, class: "shrink-0",
+          data: { dictation_target: "form" } do |form| %>
+      <%= form.file_field "voice_entry[audio]", accept: "audio/*", class: "hidden",
+            data: { dictation_target: "audio" } %>
+      <%# Removes itself where the browser cannot record, which is why there is no
+          explanatory copy: the field beside it is the answer. %>
+      <button type="button" data-dictation-target="button" data-action="dictation#toggle"
+              aria-label="Record"
+              class="rounded-full border border-slate-300 px-3.5 py-2.5 text-slate-700 hover:bg-slate-50">
+        <%= render "shared/mic_icon" %>
+      </button>
+    <% end %>
   </div>
 
   <%= render "shared/dictation_overlay" %>
-<% end %>
+</div>
