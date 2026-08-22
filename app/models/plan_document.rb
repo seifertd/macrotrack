@@ -13,7 +13,10 @@ class PlanDocument
   # prose (WP6 sits above WP4 because it was promoted, then demoted again) and the
   # heading order stopped matching the build order the first time that happened.
   BUILD_ORDER = /^\*\*Build order:\*\*\s*(.+)$/
-  PACKAGE_NUMBER = /\d+(?:\.\d+)?[ab]?/
+  # The optional hyphen is for WP4.5-a / WP4.5-b. Without it the number matches as
+  # "4.5" and then the heading fails on the em dash that is supposed to follow, so the
+  # package silently drops out of the nav rather than rendering wrong.
+  PACKAGE_NUMBER = /\d+(?:\.\d+)?(?:-?[ab])?/
   HEADING = /^(\#{2,3})\s+WP(#{PACKAGE_NUMBER})\s+—\s+(.*)$/
   SUB_PACKAGE = /\A(\d+)[ab]\z/
 
@@ -109,7 +112,9 @@ class PlanDocument
         next whole unless match
 
         number, rest = match[1], match[2]
-        anchor = "wp#{number.tr('.', '-')}"
+        # 4.5-a would otherwise anchor as "wp4-5--a". Squeezing is a no-op for every
+        # other number, so existing anchors keep working.
+        anchor = "wp#{number.tr('.', '-').squeeze('-')}"
 
         next %(<#{tag} id="#{anchor}" class="wp wp--group">#{text}</#{tag}>) if containers.include?(number)
 
