@@ -13,7 +13,7 @@ class ChatMessagesController < ApplicationController
 
     @message = @conversation.messages.create!(
       role: "user",
-      input_source: "text",
+      input_source: input_source,
       content: [ { "type" => "text", "text" => text } ]
     )
 
@@ -29,6 +29,17 @@ class ChatMessagesController < ApplicationController
   end
 
   private
+    # WP5-a: a dictated turn says so, and `meal_entries.source` is copied from it, so this
+    # is the whole of voice attribution. It arrives from a hidden field that the dictation
+    # controller sets only once the recogniser has actually heard something — but the
+    # field is still a field, so anything that isn't one of the two legal values is a
+    # typed turn.
+    def input_source
+      claimed = params.dig(:chat_message, :input_source)
+
+      Message::INPUT_SOURCES.include?(claimed) ? claimed : "text"
+    end
+
     def suggest(text)
       match = Meals::Matcher.new(Current.user, text).best_entry
       log_retrieval(text, match)

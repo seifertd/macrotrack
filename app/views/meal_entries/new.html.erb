@@ -11,19 +11,42 @@
     screen was opened from a day, and it keeps logging to that day. %>
 <p class="mt-0.5 text-sm text-slate-500">
   <% if today %>
-    Four ways in. All of them land on today.
+    Five ways in. All of them land on today.
   <% else %>
-    Four ways in. All of them land on
+    Five ways in. All of them land on
     <span class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
       <%= @date.strftime("%-d %b") %>
     </span>.
   <% end %>
 </p>
 
+<%# WP5-a. The tap that starts the recogniser has to be the gesture the browser sees, so
+    this listens here rather than sending you to the chat screen to tap again — which is
+    the whole point, one tap from this screen to a logged meal. The post is deliberately
+    not a Turbo submit: it lands on the chat screen by ordinary redirect, with the answer
+    already on its way. Where the browser has no recogniser the button removes itself and
+    the row below is what you wanted anyway. %>
+<%= form_with url: chat_messages_path, data: { turbo: false, controller: "dictation" } do |form| %>
+  <%= form.hidden_field "chat_message[text]", data: { dictation_target: "field" } %>
+  <%= form.hidden_field "chat_message[input_source]", value: "voice",
+        data: { dictation_target: "source" } %>
+
+  <button type="button" data-dictation-target="button" data-action="dictation#toggle"
+          class="mt-4 flex w-full items-center justify-between rounded-xl bg-slate-900 px-4 py-3 text-left text-white">
+    <span class="flex items-center gap-2 font-semibold">
+      <%= render "shared/mic_icon" %>
+      Speak it
+    </span>
+    <span class="text-sm text-slate-300">Tap, then say what you ate →</span>
+  </button>
+
+  <p data-dictation-target="status" class="mt-1 px-1 text-xs text-slate-500 empty:hidden"></p>
+<% end %>
+
 <%= link_to chat_path,
-      class: "mt-4 flex items-center justify-between rounded-xl bg-slate-900 px-4 py-3 text-white" do %>
+      class: "mt-2 flex items-center justify-between rounded-xl border border-slate-300 bg-white px-4 py-3" do %>
   <span class="font-semibold">Log by chat</span>
-  <span class="text-sm text-slate-300">Just say what you ate →</span>
+  <span class="text-sm text-slate-500">Type it, or dictate with the keyboard →</span>
 <% end %>
 
 <%# Ahead of the repeat picker because design §6 orders the paths that way: a label is

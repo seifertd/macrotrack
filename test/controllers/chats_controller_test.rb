@@ -20,6 +20,27 @@ class ChatsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#messages"
   end
 
+  test "the composer carries a mic and a source that starts out honest" do
+    get chat_path
+
+    assert_select "form#composer button[data-action=?]", "dictation#toggle"
+    assert_select "form#composer input[name=?][value=?]", "chat_message[input_source]", "text"
+  end
+
+  # The indicator is normally switched on by the broadcast the job sends. Arrive after
+  # that broadcast — a reload, or the redirect from the Add screen's "Speak it" — and
+  # there is nothing left to receive, so the page has to work it out for itself.
+  test "a turn already in flight shows as thinking on a fresh page load" do
+    users(:doug).conversation!.messages.create!(
+      role: "user", input_source: "voice",
+      content: [ { "type" => "text", "text" => "two ikea meatballs" } ]
+    )
+
+    get chat_path
+
+    assert_select "#typing_indicator:not(.hidden)"
+  end
+
   test "renders the transcript, its confirmation cards, and skips tool-only turns" do
     conversation = users(:doug).conversation!
     entry = users(:doug).meal_entries.create!(

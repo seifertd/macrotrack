@@ -158,6 +158,17 @@ class MealEntriesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_session_path
   end
 
+  # WP5-a: one tap from this screen to a submitted meal, which means the form posts to
+  # the chat endpoint itself rather than sending you there to start again.
+  test "the add screen speaks straight into the chat endpoint" do
+    get new_meal_entry_path
+
+    assert_select "form[action=?][data-turbo=?]", chat_messages_path, "false" do
+      assert_select "input[name=?][value=?]", "chat_message[input_source]", "voice"
+      assert_select "button[data-action=?]", "dictation#toggle"
+    end
+  end
+
   private
     # The prefilled "When" field, read back out of the rendered form.
     def assigns_consumed_at

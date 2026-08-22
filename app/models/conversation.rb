@@ -23,6 +23,17 @@ class Conversation < ApplicationRecord
     messages.reverse_each.find(&:spoken?)&.text
   end
 
+  # Whether a turn is in flight. The screen learns this from a broadcast while it is
+  # open, and has no way to learn it at all when it wasn't — a reload mid-turn, or the
+  # redirect that lands you here from the Add screen's "Speak it". Two minutes because a
+  # turn still running after that has failed, and an indicator that never stops is worse
+  # than one that never starts.
+  def awaiting_reply?
+    last = messages.last
+
+    last&.role == "user" && last.created_at.after?(2.minutes.ago)
+  end
+
   def last_input_source
     messages.reverse_each.find { |message| message.role == "user" && message.input_source.present? }
       &.input_source || "text"
