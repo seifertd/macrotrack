@@ -26,36 +26,13 @@
     {
       "warning_type": "SQL Injection",
       "warning_code": 0,
-      "fingerprint": "78059f7f92c164abf5e15d951ad57c3481f41df36aad9b18e49df368c1f862f9",
+      "fingerprint": "9e5d0c30cd19ee8fdfa202bbaec13da93d43e17c38d84bc939dfcd37b12fb688",
       "check_name": "SQL",
       "message": "Possible SQL injection",
       "file": "app/services/meals/matcher.rb",
-      "line": 78,
+      "line": 104,
       "link": "https://brakemanscanner.org/docs/warning_types/sql_injection/",
-      "code": "MealEntry.joins(:user, :food).where(:users => ({ :household_id => user.household_id })).where(:consumed_at => ((WINDOW.ago..))).where(\"#{score_sql(\"foods.name\")} >= ?\", threshold)",
-      "render_path": null,
-      "location": {
-        "type": "method",
-        "class": "Meals::Matcher",
-        "method": "scored_entries"
-      },
-      "user_input": "score_sql(\"foods.name\")",
-      "confidence": "Medium",
-      "cwe_id": [
-        89
-      ],
-      "note": "The interpolated fragment comes from Meals::Matcher#score_sql, which builds it with sanitize_sql_array: the chat text is a bound parameter and the column name is a literal written in our own code, never user input. Brakeman cannot follow the call, so all it sees is the interpolation. Reviewed 2026-08-19 (WP4.4)."
-    },
-    {
-      "warning_type": "SQL Injection",
-      "warning_code": 0,
-      "fingerprint": "51053fd3d1849f2edb70f0884c1444519ce3341e90feba5532a08e421f54cd63",
-      "check_name": "SQL",
-      "message": "Possible SQL injection",
-      "file": "app/services/meals/matcher.rb",
-      "line": 92,
-      "link": "https://brakemanscanner.org/docs/warning_types/sql_injection/",
-      "code": "Food.where.not(:calories_per_100g => nil).where(\"#{score_sql(\"foods.name\")} >= ?\", threshold)",
+      "code": "Food.where.not(:calories_per_100g => nil).where(above(score_sql(\"foods.name\"), threshold)).select(\"foods.*\", \"#{score_sql(\"foods.name\")} AS match_score\")",
       "render_path": null,
       "location": {
         "type": "method",
@@ -67,7 +44,30 @@
       "cwe_id": [
         89
       ],
-      "note": "The interpolated fragment comes from Meals::Matcher#score_sql, which builds it with sanitize_sql_array: the chat text is a bound parameter and the column name is a literal written in our own code, never user input. Brakeman cannot follow the call, so all it sees is the interpolation. Reviewed 2026-08-19 (WP4.4)."
+      "note": "The interpolated fragment comes from Meals::Matcher#score_sql, which builds it with sanitize_sql_array: the chat text is a bound parameter and \"foods.name\" is a column name written as a literal in our own code, never user input \u2014 a food's own name never reaches the SQL string at all. It is interpolated rather than bound because the same expression has to appear in SELECT and ORDER BY, and neither takes bind parameters. Brakeman cannot follow the call, so all it sees is the interpolation. Reviewed 2026-08-19 (WP4.4); re-reviewed 2026-08-22 after the fragment moved, and the threshold comparison went through Arel at the same time so it no longer interpolates at all."
+    },
+    {
+      "warning_type": "SQL Injection",
+      "warning_code": 0,
+      "fingerprint": "fb7eb4751c5137e68f7733ad4d286c8d98eec56f70bcb2b3e21fd16a60de0383",
+      "check_name": "SQL",
+      "message": "Possible SQL injection",
+      "file": "app/services/meals/matcher.rb",
+      "line": 90,
+      "link": "https://brakemanscanner.org/docs/warning_types/sql_injection/",
+      "code": "MealEntry.joins(:user, :food).where(:users => ({ :household_id => user.household_id })).where(:consumed_at => ((WINDOW.ago..))).where(above(score_sql(\"foods.name\"), threshold)).select(\"meal_entries.*\", \"#{score_sql(\"foods.name\")} AS match_score\")",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "Meals::Matcher",
+        "method": "scored_entries"
+      },
+      "user_input": "score_sql(\"foods.name\")",
+      "confidence": "Medium",
+      "cwe_id": [
+        89
+      ],
+      "note": "The interpolated fragment comes from Meals::Matcher#score_sql, which builds it with sanitize_sql_array: the chat text is a bound parameter and \"foods.name\" is a column name written as a literal in our own code, never user input \u2014 a food's own name never reaches the SQL string at all. It is interpolated rather than bound because the same expression has to appear in SELECT and ORDER BY, and neither takes bind parameters. Brakeman cannot follow the call, so all it sees is the interpolation. Reviewed 2026-08-19 (WP4.4); re-reviewed 2026-08-22 after the fragment moved, and the threshold comparison went through Arel at the same time so it no longer interpolates at all."
     }
   ],
   "brakeman_version": "8.0.6"
