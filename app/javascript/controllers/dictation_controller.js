@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import Transcript from "lib/transcript"
 
 // Tap, ramble, done (WP5-a).
 //
@@ -36,7 +37,12 @@ export default class extends Controller {
   disconnect() {
     this.listening = false
     this.clearTimers()
-    if (this.recognition) this.recognition.abort()
+
+    if (!this.recognition) return
+
+    // Unhooked before aborting: abort() fires `end`, and `end` is the path that submits.
+    this.recognition.onresult = this.recognition.onerror = this.recognition.onend = null
+    this.recognition.abort()
   }
 
   toggle() {
@@ -44,8 +50,7 @@ export default class extends Controller {
   }
 
   start() {
-    this.chunks = []
-    this.session = this.pending = ""
+    this.transcript = new Transcript()
     this.problem = null
     this.listening = true
     this.deadline = Date.now() + this.constructor.LIMIT_MS
@@ -71,23 +76,8 @@ export default class extends Controller {
     this.waitForSilence()
   }
 
-  // Rebuilt from the whole list every time, never appended to. Chrome on Android reports
-  // one result over and over as it firms up, each report a longer prefix of the same
-  // sentence — "I'm", "I'm going to", "I'm going to have" — so appending says the
-  // sentence once per update and you get the mess this shipped with on 22 August.
-  // Recomputing is idempotent, which is the property that actually matters here.
   heard(event) {
-    let final = ""
-    let interim = ""
-
-    for (const result of event.results) {
-      if (result.isFinal) final += `${result[0].transcript} `
-      else interim += `${result[0].transcript} `
-    }
-
-    this.session = final
-    this.pending = interim
-    this.fieldTarget.value = this.assemble(final, interim)
+    this.fieldTarget.value = this.transcript.hear(event.results)
     this.waitForSilence()
   }
 
@@ -96,11 +86,7 @@ export default class extends Controller {
   // the silence timer below — not the browser's idea of a sentence — that decides when
   // you have finished talking.
   ended() {
-    // Both, and in this order: stop() normally finalises what it was in the middle of,
-    // but a session that ends with words still interim would otherwise throw them away,
-    // and losing the end of a sentence is worse than assembling one carefully.
-    this.chunks.push(this.session, this.pending)
-    this.session = this.pending = ""
+    this.transcript.close()
 
     if (this.listening && Date.now() < this.deadline) {
       try {
@@ -111,20 +97,6 @@ export default class extends Controller {
     }
 
     this.send()
-  }
-
-  // Everything heard so far, in order, with a piece dropped where it only repeats what
-  // is already there. Rebuilding handles duplicates inside one session; this handles the
-  // seam between two, because restarting mid-utterance can hand back the tail of the
-  // audio the last session already transcribed.
-  assemble(...parts) {
-    return [ ...this.chunks, ...parts ].reduce((said, part) => {
-      const piece = part.replace(/\s+/g, " ").trim()
-
-      if (piece === "" || said.toLowerCase().endsWith(piece.toLowerCase())) return said
-
-      return said === "" ? piece : `${said} ${piece}`
-    }, "")
   }
 
   failed(event) {
@@ -156,7 +128,7 @@ export default class extends Controller {
     this.recognition = null
     this.buttonTarget.classList.remove("animate-pulse", "ring-2", "ring-rose-400")
 
-    const said = this.assemble()
+    const said = this.transcript.text()
     this.fieldTarget.value = said
 
     if (said === "") return this.say(this.problem || "Didn't hear anything.")
