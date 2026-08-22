@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_19_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_22_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -132,7 +132,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_19_180000) do
     t.index ["user_id"], name: "index_weight_entries_on_user_id"
   end
 
-  add_foreign_key "conversations", "meal_entries", column: "last_meal_entry_id"
+  add_foreign_key "conversations", "meal_entries", column: "last_meal_entry_id", on_delete: :nullify
   add_foreign_key "conversations", "users"
   add_foreign_key "exercise_entries", "users"
   add_foreign_key "meal_entries", "foods"

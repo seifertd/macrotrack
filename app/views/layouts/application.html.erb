@@ -18,6 +18,17 @@
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
 
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+
+    <%# Turbo forces a full load when a `data-turbo-track="reload"` element changes, which
+        is how the stylesheet above survives a deploy. Nothing importmap_tags renders
+        carries that attribute — the map is inline and the preload links are bare — so an
+        app left open since before a deploy keeps running the JavaScript it booted with,
+        and Turbo swapping the body never re-imports a module. That is how the dictation
+        fix of 22 August reached the phone and did nothing until it was reloaded by hand.
+        This digest covers every pinned module's digested path, so it moves when any of
+        them does. %>
+    <meta name="importmap-digest" data-turbo-track="reload"
+          content="<%= Rails.application.importmap.digest(resolver: self) %>">
     <%= javascript_importmap_tags %>
   </head>
 

@@ -2,6 +2,12 @@ class MealEntry < ApplicationRecord
   belongs_to :user
   belongs_to :food, optional: true
 
+  # The chat's pointer at the last thing it logged. Declared here for the `dependent`,
+  # which keeps an already-loaded Conversation honest in memory; the database nullifies
+  # it too, and that is the half that holds when a row is deleted from anywhere else.
+  has_many :conversations, foreign_key: :last_meal_entry_id, dependent: :nullify,
+    inverse_of: :last_meal_entry
+
   # Set by the manual form and resolved to a Food row in the controller. Not a column:
   # the canonical name lives on foods, which is shared between both users.
   attr_accessor :food_name
