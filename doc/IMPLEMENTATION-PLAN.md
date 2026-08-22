@@ -686,7 +686,9 @@ Small, because WP4 already built everything downstream of a transcript and left 
 
 **What it costs.** About eight seconds of "Transcribing…" after you press Done, against the browser recogniser's nothing. §1 is why that is the right side of the line: you press Done and put the phone down, so it is elapsed time rather than the hands-and-attention time this app is measured on. Transcription runs inline rather than in a job — it is eight seconds of a Puma thread, but the transcript is the thing being waited for, and a job would mean a second broadcast, a second failure path and a spinner that cannot say which half it is waiting on. Revisit if two people ever record at the same moment.
 
-**Still open, and deliberately not fixed here:** `script/backup_production_db.sh` is a `pg_dump` and the recordings live in `shared/storage`, so the audio is not backed up. That is WP3's file, and roughly 700KB a recording.
+**The backups needed WP3 reopening.** `script/backup_production_db.sh` was a `pg_dump`, and the recordings live in `shared/storage` — so the one thing on that box a dump cannot reproduce was the one thing not being copied. It now mirrors the blobs with rsync beside the dump: added to rather than synced, because they are immutable and content-addressed, and no `--delete`, so a meal deleted by accident is still recoverable. The guard matters as much as the copy — the mirror only grows, so fewer files than the database has blobs means the storage symlink broke on a deploy, which otherwise looks like a healthy backup from outside. Verified by pointing a copy at an empty directory and watching it fail. The offsite pull to the media box needed no change and carries the audio incrementally; both sides now hold the same bytes, checked by md5.
+
+**A screen wake lock is held while recording** (§6, added 2026-08-22). MediaRecorder survives the screen going dark, but the overlay and the Done button do not, and a recording you cannot stop is not much better than one that stopped by itself. Best effort: not every browser has it, and none of the ways it can fail are worth interrupting a recording to mention.
 
 **Done when:** ✅ you've logged dinner by voice, from the kitchen, with wet hands, while the screen locked — and three weeks later you can still hear what you said.
 
@@ -712,7 +714,7 @@ Then it is the original build:
 
 **How this gets tested** — steps 1, 3 and 6 are the server side and get ordinary controller and service tests: `Stt::Fake` and Faraday's test adapter give you the seams without a network call, and the bake-off clip from step 2 is the fixture. Steps 4, 5 and the waveform are browser-only and get validated by hand — the wake-lock case has to be driven physically, and no rig would have caught it anyway.
 
-*(That list is what shipped, with §6's staged feedback and the wake lock intact; only the provider changed.)*
+*(That list is what shipped, except for the provider and one omission: the wake lock in step 5 was missed on the first pass and the package was called done anyway. Added 2026-08-22 once §6 was re-read closely enough to notice. The IndexedDB retry queue for a failed upload — §6's, not this list's — is still not built, and is real offline work rather than four lines.)*
 
 ---
 
