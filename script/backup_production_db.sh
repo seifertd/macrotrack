@@ -5,8 +5,9 @@
 #
 #   /home/doug/webapps/macrotrack/production/current/script/backup_production_db.sh
 #
-# Dumps the primary database only. cache/queue/cable are Solid-* scratch state —
-# regenerable from db/*_schema.rb, and nothing in them is worth restoring.
+# Dumps the primary database, and mirrors the Active Storage blobs beside it.
+# cache/queue/cable are Solid-* scratch state — regenerable from db/*_schema.rb,
+# and nothing in them is worth restoring.
 set -euo pipefail
 
 SHARED=/home/doug/webapps/macrotrack/production/shared
@@ -49,6 +50,39 @@ if [ "$TABLES" -eq 0 ]; then
   exit 1
 fi
 echo "dump contains $TABLES tables with data"
+
+# --- Active Storage blobs ---------------------------------------------------
+# The voice recordings (§6, WP5-b). This is the one thing here that a pg_dump
+# cannot reproduce: the dump keeps the blob *rows*, so losing the files leaves a
+# database full of records pointing at nothing.
+#
+# Mirrored rather than tarred, and added to rather than synced. Blobs are
+# immutable and content-addressed, so a run only ever copies files it has not
+# seen — a nightly tar of a corpus that only grows would rewrite gigabytes to
+# capture one new recording. No --delete for the same reason the offsite pull
+# has none: an entry deleted by accident should still be recoverable tomorrow.
+STORAGE="$SHARED/storage"
+MIRROR="$BACKUP_DIR/storage"
+
+if [ -d "$STORAGE" ]; then
+  mkdir -p "$MIRROR"
+  rsync -a "$STORAGE/" "$MIRROR/"
+
+  FILES=$(find "$MIRROR" -type f | wc -l)
+  BLOBS=$(PGPASSWORD="$PASS" psql -h 127.0.0.1 -p "$PORT" -U "$USER" -d "$DB" \
+    -tAc "SELECT count(*) FROM active_storage_blobs" 2>/dev/null || echo 0)
+  echo "mirrored $FILES files ($(du -sh "$MIRROR" | cut -f1)); database holds $BLOBS blobs"
+
+  # The mirror only grows, so it can never legitimately hold fewer files than the
+  # database has blobs. Fewer means the storage symlink broke on a deploy, or the
+  # rsync only half ran — both of which look like a healthy backup from outside.
+  if [ "$FILES" -lt "$BLOBS" ]; then
+    echo "FAILED: $FILES files mirrored but $BLOBS blobs recorded"
+    exit 1
+  fi
+else
+  echo "no storage directory at $STORAGE — nothing to mirror"
+fi
 
 find "$BACKUP_DIR" -name "${DB}-*.dump" -mtime "+$RETAIN_DAYS" -print -delete
 

@@ -18,8 +18,14 @@ LOG="$DEST/pull.log"
 exec >>"$LOG" 2>&1
 echo "=== $(date -Is) starting pull"
 
-# No --delete: das prunes at 30 days, and keeping deeper history here is the
-# whole point of a second copy. The dumps are ~33K, so this stays cheap.
+# No --delete: das prunes dumps at 30 days, and keeping deeper history here is
+# the whole point of a second copy. It also means a recording deleted on das
+# survives here, which is the only copy of it that then exists.
+#
+# This used to be cheap because the dumps are ~33K. Since WP5-b it also carries
+# the voice recordings — about 700K each, a few a day — so the first pull after
+# that change is large and every one after it is incremental. rsync only moves
+# what is new, which is why the blobs are mirrored on das rather than tarred.
 rsync -az --stats \
   -e "ssh -i $KEY -o BatchMode=yes -o ConnectTimeout=30" \
   "$REMOTE:/" "$DEST/" | tail -3
@@ -40,4 +46,5 @@ else
 fi
 
 COUNT=$(ls -1 "$DEST"/macrotrack_production-*.dump 2>/dev/null | wc -l)
-echo "=== $(date -Is) pull ok, $COUNT dumps held locally"
+BLOBS=$(find "$DEST/storage" -type f 2>/dev/null | wc -l)
+echo "=== $(date -Is) pull ok, $COUNT dumps and $BLOBS blobs held locally"
