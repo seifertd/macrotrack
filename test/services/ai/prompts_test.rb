@@ -89,8 +89,20 @@ class Ai::PromptsTest < ActiveSupport::TestCase
 
       assert_no_match(/Fresh figs/, volatile)
       assert_match(/authoritative/, volatile)
-      assert_match(/never refuse to log something on the grounds that you remember/, volatile.squish)
+      assert_match(/never a reason to hesitate over logging something again/, volatile.squish)
     end
+  end
+
+  # Production, 22 August: "two small figs" came back as "Another repeat, or genuinely a
+  # third pair of figs? Say the word and I'll log it" — a question that changes no
+  # estimate, costing a turn to ask for what had just been asked for. Making today's log
+  # visible is what gave it something to hesitate over, so the rule against hesitating
+  # lives in the cached block, next to the rule about which questions are worth asking.
+  test "logging a meal again is never a question" do
+    stable = Ai::Prompts.meal_logging(@user).first[:text].squish
+
+    assert_match(/user is the authority on what they ate/, stable)
+    assert_match(/Never ask whether a repeat is deliberate/, stable)
   end
 
   test "an empty day says so rather than heading an empty list" do
