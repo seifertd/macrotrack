@@ -36,6 +36,8 @@ class ChatsControllerTest < ActionDispatch::IntegrationTest
     get chat_path
 
     assert_select "form#composer button[data-action=?]", "dictation#toggle"
+    assert_select "form#composer [data-dictation-target=?]", "overlay"
+    assert_select "form#composer button[data-action=?]", "dictation#finish"
     assert_select "form#composer input[name=?][value=?]", "chat_message[input_source]", "text"
   end
 

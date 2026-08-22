@@ -1,0 +1,39 @@
+<%# WP5-a. The recogniser stops listening whenever you pause and has to be restarted, and
+    Android chimes each time it does — a system sound no web page can silence. That is
+    survivable; what was not is that a word lost between two sessions was invisible until
+    the meal had already been logged. So the words appear here as they land, the beep is
+    explained rather than mysterious, and nothing is sent until you say so. %>
+<div data-dictation-target="overlay" role="dialog" aria-modal="true" aria-label="Dictating"
+     class="fixed inset-0 z-50 hidden bg-slate-900/95 backdrop-blur">
+  <div class="mx-auto flex h-full w-full max-w-xl flex-col items-center px-6 py-10 text-center">
+    <div class="relative flex h-24 w-24 shrink-0 items-center justify-center">
+      <span data-dictation-target="halo"
+            class="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-500/40"></span>
+      <span class="relative inline-flex h-20 w-20 items-center justify-center rounded-full bg-rose-500 text-white">
+        <%= render "shared/mic_icon" %>
+      </span>
+    </div>
+
+    <p data-dictation-target="state" class="mt-5 text-sm font-semibold text-rose-200">Listening…</p>
+
+    <%# aria-live so the words are announced, not only drawn. %>
+    <p data-dictation-target="heard" aria-live="polite"
+       class="mt-4 min-h-24 w-full overflow-y-auto text-left text-lg leading-relaxed text-white empty:hidden"></p>
+
+    <p data-dictation-target="hint" class="mt-4 text-xs leading-relaxed text-slate-400">
+      Keep going — pauses are fine. A short beep just means it picked back up.
+      If a word is missing above, say it again before you finish.
+    </p>
+
+    <div class="mt-auto flex w-full flex-col gap-3 pt-8">
+      <button type="button" data-action="dictation#finish"
+              class="w-full rounded-full bg-white px-6 py-4 text-base font-semibold text-slate-900">
+        Done
+      </button>
+      <button type="button" data-action="dictation#cancel"
+              class="w-full rounded-full px-6 py-3 text-sm font-medium text-slate-400">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>

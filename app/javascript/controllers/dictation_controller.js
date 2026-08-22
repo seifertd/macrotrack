@@ -15,12 +15,13 @@ import Transcript from "lib/transcript"
 // phone with no recogniser still has a keyboard with a mic key, so the button is simply
 // not rendered rather than rendered and apologetic.
 export default class extends Controller {
-  static targets = ["field", "source", "button", "status"]
+  static targets = [ "field", "source", "button", "status", "overlay", "heard", "state" ]
 
-  // A backstop, not the main way a recording ends. Android decides that itself, at the
-  // first real pause; this only matters if it never says so, or if a button pressed by a
-  // pocket is left listening to a quiet room.
-  static SILENCE_MS = 2500
+  // Nothing is sent on a timer any more — you press Done. This only stops the microphone
+  // being held open by a button pressed in a pocket, and it stops *listening* rather than
+  // sending: whatever was heard stays on screen behind the Done button, so a recording
+  // nobody is watching cannot log a meal on its own.
+  static QUIET_MS = 45000
 
   connect() {
     this.Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -33,6 +34,7 @@ export default class extends Controller {
   disconnect() {
     this.listening = false
     this.clearTimers()
+    this.close()
 
     if (!this.recognition) return
 
@@ -68,31 +70,60 @@ export default class extends Controller {
     }
 
     this.fieldTarget.value = ""
-    this.buttonTarget.classList.add("animate-pulse", "ring-2", "ring-rose-400")
-    this.say("Listening… say it in one go — a pause ends it.")
-    this.waitForSilence()
+    this.show("")
+    this.overlayTarget.classList.remove("hidden")
+    this.stateTarget.textContent = "Listening…"
+    this.say("")
+    this.waitForQuiet()
   }
 
   heard(event) {
-    this.fieldTarget.value = this.transcript.hear(event.results)
-    this.waitForSilence()
+    this.show(this.transcript.hear(event.results))
+    this.waitForQuiet()
   }
 
-  // One tap is one utterance, and that is a concession rather than a design.
+  // Restarted for as long as the overlay is open, because Android ends the session at
+  // every pause whatever `continuous` says and there is no setting that changes it — the
+  // one that would, EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, belongs to the
+  // native Intent API and is unreachable from a page. Design §6 is right that this API
+  // stops on silence. What it costs is a chime on each restart, and the odd word lost in
+  // the moment between one session ending and the next beginning.
   //
-  // This used to restart the recogniser whenever a session ended, so that a pause
-  // mid-sentence would not end the recording. It does not work. Android ends the session
-  // at every pause whatever `continuous` says, plays its own chime on each new one, and
-  // loses whatever is said in the gap between the two — so a rambling sentence came back
-  // beeping at the user with words missing from the middle. Design §6 called this
-  // exactly, under the heading "Don't use the Web Speech API", and building around it
-  // rather than reading it is how we got here.
-  //
-  // So the recording now ends when Android says it ended. Short sentences — which is
-  // nearly all of them — are unaffected, and rambling is what WP5-b is for.
+  // Both of those are survivable now only because the words are on screen as they land:
+  // a gap is something you can see and say again, rather than something you discover
+  // after the meal is logged. Not a fix — WP5-b is the fix — but honest.
   ended() {
     this.transcript.close()
+
+    if (this.listening) {
+      try {
+        return this.recognition.start()
+      } catch {
+        // Fall through and send what we have.
+      }
+    }
+
     this.send()
+  }
+
+  // The user says when they are finished. Asking the recogniser to stop is all this does;
+  // its own `end` event is still the one path that submits.
+  finish() {
+    this.listening = false
+    this.clearTimers()
+    if (this.recognition) this.recognition.stop()
+  }
+
+  cancel() {
+    this.listening = false
+    this.clearTimers()
+    this.close()
+
+    if (!this.recognition) return
+
+    this.recognition.onresult = this.recognition.onerror = this.recognition.onend = null
+    this.recognition.abort()
+    this.recognition = null
   }
 
   failed(event) {
@@ -110,22 +141,14 @@ export default class extends Controller {
     }
   }
 
-  // Asks the recogniser to stop; the session's own `end` event does the sending, so
-  // there is exactly one path out and it is the same one silence takes.
-  finish() {
-    this.listening = false
-    this.clearTimers()
-    if (this.recognition) this.recognition.stop()
-  }
-
   send() {
     this.listening = false
     this.clearTimers()
     this.recognition = null
-    this.buttonTarget.classList.remove("animate-pulse", "ring-2", "ring-rose-400")
 
     const said = this.transcript.text()
     this.fieldTarget.value = said
+    this.close()
 
     if (said === "") return this.say(this.problem || "Didn't hear anything.")
 
@@ -138,9 +161,23 @@ export default class extends Controller {
     this.element.requestSubmit()
   }
 
-  waitForSilence() {
+  // Stops listening without sending. The overlay stays up with whatever was heard, so
+  // finishing is still a deliberate press.
+  waitForQuiet() {
     this.clearTimers()
-    this.timer = setTimeout(() => this.finish(), this.constructor.SILENCE_MS)
+    this.timer = setTimeout(() => {
+      this.listening = false
+      if (this.recognition) this.recognition.stop()
+      this.stateTarget.textContent = "Stopped listening — press Done to send."
+    }, this.constructor.QUIET_MS)
+  }
+
+  show(said) {
+    this.heardTarget.textContent = said
+  }
+
+  close() {
+    this.overlayTarget.classList.add("hidden")
   }
 
   clearTimers() {
