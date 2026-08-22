@@ -4,7 +4,9 @@ Companion to `macro-tracker-design.md` (rev. 3). That doc says *what and why*; t
 
 Ordered so the app is on both phones by the end of WP2, sharing meals between the two of us by the end of WP6a, logging by conversation by the end of WP4, and logging by voice by the end of WP5-a.
 
-**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → **WP7** → **WP7.5** → **WP4.4** → **WP4.5-a** → **WP5-a** → WP8 → WP9 → WP10. **WP4.5-b is not scheduled** — it has three open questions and no deadline, because the backlog it would have served is already imported.
+**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → **WP7** → **WP7.5** → **WP4.4** → **WP4.5-a** → **WP5-a** → WP8 → WP9 → WP10.
+
+**Next: WP8** — weight + trends. WP9 cannot start until it has history to fit. **WP4.5-b is not scheduled** — it has three open questions and no deadline, because the backlog it would have served is already imported.
 
 Numbers are stable identifiers, not sequence. Three packages have moved since the first draft — barcode ahead of voice, and repeat-meals ahead of everything else — and keeping their numbers means existing cross-references still resolve. The reordering rule has been the same each time: **whatever removes real friction soonest, for the least work.**
 
@@ -635,7 +637,22 @@ So: **5-a ships now, 5-b waits for evidence from 5-a.** This is the same bar WP1
 
 **Two consequences for the bake-off in §2.** It moves into 5-b, and it gains a second baseline: keyboard dictation *and* the platform recognizer are now both free incumbents, and a paid provider has to be *visibly* better than the better of the two. The clip should be a hard one: a recipe name, a mumble, a self-correction, background kitchen noise. Four clean sentences from a quiet room will not separate the candidates.
 
-### WP5-a — One tap into the platform's own recognizer *(target: one evening; next)*
+### WP5-a — One tap into the platform's own recognizer ✅ *done 2026-08-22*
+
+**Result: 261 tests + 10 JavaScript tests, 0 failures, rubocop and brakeman clean.** Logged by voice from the kitchen in one tap, and the entry says `voice`. It took four fixes after the first deploy, and every one of them was found by a person with a phone rather than by anything that could have run in CI — which is the argument this package's own testing note makes, so it is worth setting down what actually happened.
+
+**Four bugs, in the order they were found.**
+
+1. **The transcript repeated itself, twice.** Chrome on Android does not report a sentence once. It reports it over and over, each reading one word longer — "I'm", "I'm going to", "I'm going to have" — and it does that *both* across events and within a single `results` array. The first fix caught only the first half and shipped `"two two small two small figs"`, which the production log preserved verbatim in the matcher's miss line. The rule is not "don't append twice": a reading that extends the one before it **replaces** it, because they are two readings of the same words. Readings condense within their own session and only then join, so "and" followed by "and toast" is one utterance growing while "two eggs" before it is not.
+2. **A JavaScript deploy never reached the phone.** `stylesheet_link_tag` carries `data-turbo-track="reload"` and nothing `javascript_importmap_tags` renders does, so an app open since before a deploy keeps the modules it booted with — Turbo swaps the body and never re-imports one. The fix that was live on the server for seven minutes did nothing until the app was reloaded by hand. A tracked `<meta>` carrying the importmap digest, which moves when any pinned module does, lets Turbo force the load itself.
+3. **Deleting the entry you just logged was a 500.** `conversations.last_meal_entry_id` carried a foreign key with no `ON DELETE`, and the entry it pointed at is by definition the one just logged. See below — the column is gone.
+4. **The assistant argued about logging the same meal twice.** First because the transcript still showed it logging the figs and nothing recorded the delete; the volatile block now states the day's entries as the database has them, with their ids, and says the list beats the transcript. Then — because that made duplicates visible — it started asking "another repeat, or genuinely a third pair of figs?", which is a question that changes no estimate and costs a turn to ask for what was just asked for. The user is the authority on what they ate; that rule now sits in the cached block next to the rule about which questions are worth asking.
+
+**`conversations.last_meal_entry_id` is deleted** (migration `20260822180000`). §16 of the design doc gives it, and nothing ever read it: corrections reach `update_meal` through the `meal_entry_id` in the tool result, and the day's log now reaches the model through the prompt. It was a foreign key earning nothing and costing a 500. The migration's `down` puts it back with the nullifying key it should have had, if a reader ever wants it.
+
+**The JavaScript is under test now, and that is new for this repo.** The assembly logic lives in `app/javascript/lib/transcript.js`, imported through the importmap exactly as it ships, and `bin/rails test:js` runs `node --test` over `test/javascript/` — no dependency to install, nothing to build, and no `package.json`, so this stays a Rails app that happens to have some JavaScript. `bin/ci` and the GitHub workflow run it alongside the Ruby suite. Bug 1 was pure logic reachable only through a microphone; it is now seven cases including the literal string production logged.
+
+**What shipped, against the plan below:** all seven steps, unchanged in shape. The one addition is bug 4's half of the prompt, which was not foreseen because it is not a voice problem — it is a chat problem that voice was simply the first to hit.
 
 Small, because WP4 already built everything downstream of a transcript and left it unused: `Message::INPUT_SOURCES` is already `%w[ text voice ]`, `MealEntry::SOURCES` already contains `voice`, `Ai::ToolHandlers` already stamps entries from `conversation.last_input_source`, and `Ai::Prompts::INSTRUCTIONS` already opens by telling the model to expect a transcript with filler and self-correction. What is missing is the thing that produces the transcript.
 
@@ -649,7 +666,7 @@ Small, because WP4 already built everything downstream of a transcript and left 
 
 **How this gets tested** — the thin-seam rule, same as WP7.5 and WP7. Step 5 is an ordinary controller test. Steps 2–4 are browser-only and get driven by hand, on both phones, from the home-screen icon. What keeps that safe is the property WP5 always had: failing to record leaves you in the chat composer, which is already covered.
 
-**Done when:** you have logged dinner from the kitchen, with wet hands, in one tap — and the entry says `voice`.
+**Done when:** ✅ you have logged dinner from the kitchen, with wet hands, in one tap — and the entry says `voice`.
 
 ### WP5-b — Hosted STT, and keeping the audio *(unscheduled; needs evidence from 5-a)*
 
@@ -737,8 +754,8 @@ WP1 skeleton+auth+manual ──▶ WP2 deploy+PWA ──▶ WP3 backups
                     WP7 barcode ──▶ WP4.4 reach a food ──▶ WP4.5-a bulk import ✅
                             │       (split out of WP4.5 2026-08-19:            │
                             │        141 imports need a screen to be           ▼
-                            │        checked on before they exist)      WP5-a VOICE ◀── ergonomics,
-                            │                                             one tap,        not capability
+                            │        checked on before they exist)      WP5-a VOICE ✅ ◀── ergonomics,
+                            │                                             one tap,           not capability
                             │                                             no server
                             │                                                 │
                             │                                                 ▼

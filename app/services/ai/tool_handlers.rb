@@ -37,8 +37,6 @@ module Ai
           consumed_at: Time.current
         )
       )
-      conversation.update!(last_meal_entry: entry)
-
       # Returning the ID is what makes update_meal and copy_to_household_member possible.
       { logged: true, meal_entry_id: entry.id, day_total: day_total(user) }
     end
