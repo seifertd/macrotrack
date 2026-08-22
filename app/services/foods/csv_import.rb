@@ -57,7 +57,7 @@ module Foods
           food = Food.find_or_initialize_by_name(row.name)
           (food.new_record? ? created : updated) << food
           food.update!(
-            source: "user_custom",
+            source: "recipe",
             calories_per_100g: row.calories_per_100g,
             protein_per_100g: row.protein_per_100g,
             carbs_per_100g: row.carbs_per_100g,

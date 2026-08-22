@@ -48,7 +48,22 @@ module ApplicationHelper
     when "openfoodfacts" then "from the label"
     when "usda"          then "from the USDA tables"
     when "ai_estimate"   then "estimated"
+    when "recipe"        then "from your recipes"
     else "entered by hand"
+    end
+  end
+
+  # The chip on a search result. Entries and foods are ranked in one list now, so the row
+  # has to say which it is — you tap them for different reasons, and the food carries a
+  # serving size where the entry carries a portion somebody really ate.
+  def result_chip(result)
+    return [ "eaten", "bg-emerald-100 text-emerald-800" ] if result.is_a?(MealEntry)
+
+    case result.source
+    when "recipe"        then [ "recipe", "bg-violet-100 text-violet-800" ]
+    when "openfoodfacts" then [ "label", "bg-sky-100 text-sky-800" ]
+    when "usda"          then [ "USDA", "bg-sky-100 text-sky-800" ]
+    else [ "on file", "bg-slate-100 text-slate-600" ]
     end
   end
 

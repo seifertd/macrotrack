@@ -1,7 +1,14 @@
 class Food < ApplicationRecord
+  include ScoredByName
+
   has_many :meal_entries, dependent: :nullify
 
-  SOURCES = %w[ usda openfoodfacts ai_estimate user_custom ].freeze
+  # "recipe" is a row imported from the household's own recipe corpus (WP4.5-a), and it
+  # exists because "user_custom" was doing three jobs at once: 190 imported recipes, the
+  # rows the chat creates when it logs something new, and anything actually typed into the
+  # manual form. The screen said "entered by hand" for all of them, which was true of
+  # almost none of them.
+  SOURCES = %w[ usda openfoodfacts ai_estimate recipe user_custom ].freeze
 
   validates :name, presence: true
   validates :barcode, uniqueness: true, allow_nil: true
@@ -39,6 +46,12 @@ class Food < ApplicationRecord
   SEARCH_SIMILARITY = 0.6
 
   scope :named_like, ->(query) { where(name_match_sql("foods.name", query)) }
+
+  # A food is only ever matched on its own name; an entry has a transcript too.
+  def self.search_columns = [ "foods.name" ]
+
+  # So a food and an entry can be rendered by the same ranked list.
+  def display_name = name
 
   # Ranking is a different question from matching, and needs both measures.
   #

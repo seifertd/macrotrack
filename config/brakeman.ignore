@@ -68,29 +68,6 @@
         89
       ],
       "note": "The interpolated fragment comes from Meals::Matcher#score_sql, which builds it with sanitize_sql_array: the chat text is a bound parameter and \"foods.name\" is a column name written as a literal in our own code, never user input \u2014 a food's own name never reaches the SQL string at all. It is interpolated rather than bound because the same expression has to appear in SELECT and ORDER BY, and neither takes bind parameters. Brakeman cannot follow the call, so all it sees is the interpolation. Reviewed 2026-08-19 (WP4.4); re-reviewed 2026-08-22 after the fragment moved, and the threshold comparison went through Arel at the same time so it no longer interpolates at all."
-    },
-    {
-      "warning_type": "SQL Injection",
-      "warning_code": 0,
-      "fingerprint": "9a39832f45f754cf0ae11ce731677190b990f22f05b41e26aa83fba9231150bc",
-      "check_name": "SQL",
-      "message": "Possible SQL injection",
-      "file": "app/models/meal_entry.rb",
-      "line": 53,
-      "link": "https://brakemanscanner.org/docs/warning_types/sql_injection/",
-      "code": "select(\"meal_entries.*\", \"#{Food.word_score_sql(query, \"foods.name\", \"meal_entries.raw_input\")} AS word_score\", \"#{Food.whole_score_sql(query, \"foods.name\", \"meal_entries.raw_input\")} AS whole_score\")",
-      "render_path": null,
-      "location": {
-        "type": "method",
-        "class": "MealEntry",
-        "method": "scored_against"
-      },
-      "user_input": "Food.word_score_sql(query, \"foods.name\", \"meal_entries.raw_input\")",
-      "confidence": "High",
-      "cwe_id": [
-        89
-      ],
-      "note": "The interpolated fragments come from Food.word_score_sql / whole_score_sql, which build them with sanitize_sql_array: the typed query is a bound parameter and the column names are literals written in our own code, never user input. They are interpolated rather than bound because the same expression is needed in SELECT and ORDER BY, and neither takes bind parameters \u2014 and because passing the fragment to order(sql, query) would reintroduce the placeholder bug fixed in Meals::Matcher, where a \"?\" in what the user typed counts as a second bind. Brakeman cannot follow the call, so all it sees is the interpolation. Reviewed 2026-08-22."
     }
   ],
   "brakeman_version": "8.0.6"
