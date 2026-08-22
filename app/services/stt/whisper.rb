@@ -2,10 +2,21 @@ module Stt
   # whisper.cpp, on our own box, decoding the upload itself — miniaudio reads mp3, wav and
   # flac, so there is no ffmpeg on das and nothing to install with a password.
   #
-  # base.en, and that is measured rather than assumed: on 2026-08-22 a 21-second clip took
-  # 2.2s on tiny.en, 3.9s on base.en and 12.0s on small.en, and all three transcribed it
-  # correctly, self-correction and all. base.en is the middle one for the same reason you
-  # would pick it anywhere — a little more room to be wrong, at a cost nobody notices.
+  # small.en, and the way we got there is worth keeping. The bake-off clip on 2026-08-22
+  # was transcribed correctly by all three models, so base.en looked like the obvious pick
+  # at 4 seconds against small.en's 12. The first real recording through the app said
+  # otherwise: base.en heard "ITA meatballs" where the user said IKEA.
+  #
+  # Feeding the foods table in as whisper's initial prompt — the vocabulary biasing §6
+  # designed, and the obvious fix — made it worse rather than better. It did not recover
+  # the name, and it silently dropped "about 10 of them". A wrong count is a wrong calorie
+  # figure, which is a worse failure than a wrong name the model can repair from context,
+  # so there is no prompt here and there should not be one.
+  #
+  # small.en got every word, and 750MB of a 3GB box for eleven seconds is affordable. The
+  # cost is real — twelve seconds rather than four — and §1 is the reason it is acceptable:
+  # you press Done and put the phone down, so it is elapsed time rather than the
+  # hands-and-attention time that this app is measured on.
   class Whisper
     def transcribe(path)
       binary = Rails.configuration.x.whisper_binary

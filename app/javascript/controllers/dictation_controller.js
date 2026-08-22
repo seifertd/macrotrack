@@ -10,7 +10,7 @@ import { wavFrom, SAMPLE_RATE } from "lib/wav"
 //
 // So the microphone is ours now. MediaRecorder runs from the first tap to Done with
 // nothing interrupting it — no chime, no truncation, no gap — and the audio goes to
-// whisper.cpp on our own box, which transcribes a twenty-second ramble in about four
+// whisper.cpp on our own box, which transcribes a twenty-second ramble in about twelve
 // seconds and gets "IKEA meatballs" right.
 //
 // What we give up is the live transcript: the words arrive after you finish rather than
@@ -71,7 +71,7 @@ export default class extends Controller {
     if (!this.recording) return
 
     this.recording = false
-    this.stateTarget.textContent = "Transcribing…"
+    this.stateTarget.textContent = "Transcribing… this takes a few seconds."
     this.recorder.stop()
   }
 
