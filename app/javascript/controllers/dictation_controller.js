@@ -1,188 +1,198 @@
 import { Controller } from "@hotwired/stimulus"
-import Transcript from "lib/transcript"
+import { wavFrom, SAMPLE_RATE } from "lib/wav"
 
-// Tap, ramble, done (WP5-a).
+// Tap, ramble, done (WP5-b).
 //
-// The recogniser is the browser's own, reached through `webkitSpeechRecognition`. That is
-// the entire package: no endpoint, no provider, no blob, and nothing of ours to keep
-// running. Chrome does the recognising on Google's servers rather than on the handset —
-// worth knowing, and a smaller step than it sounds next to sending the same sentence to
-// Anthropic a moment later. WP5-b is where a hosted recogniser with vocabulary biasing
-// would go, and it stays unbuilt until this one is measured and found wanting.
+// This used to be the browser's own recogniser, and design §6 was right that it cannot do
+// this: Android ends the session at every pause, chimes each time it is restarted, and
+// loses whatever is said in between. Two rounds of working around that produced a
+// recording that beeped at the user with words missing from the middle.
 //
-// Failure ends where WP7's does — in the composer you were going to type into anyway.
-// Unlike the barcode screen there is nothing to explain when the browser can't do it: a
-// phone with no recogniser still has a keyboard with a mic key, so the button is simply
-// not rendered rather than rendered and apologetic.
+// So the microphone is ours now. MediaRecorder runs from the first tap to Done with
+// nothing interrupting it — no chime, no truncation, no gap — and the audio goes to
+// whisper.cpp on our own box, which transcribes a twenty-second ramble in about four
+// seconds and gets "IKEA meatballs" right.
+//
+// What we give up is the live transcript: the words arrive after you finish rather than
+// as you speak. That is the trade for never losing any of them, and it is why the overlay
+// shows the sound of your voice instead — you still need to know it is hearing you.
 export default class extends Controller {
-  static targets = [ "field", "source", "button", "status", "overlay", "heard", "state" ]
+  static targets = [ "form", "audio", "button", "status", "overlay", "state", "level", "clock" ]
 
-  // Nothing is sent on a timer any more — you press Done. This only stops the microphone
-  // being held open by a button pressed in a pocket, and it stops *listening* rather than
-  // sending: whatever was heard stays on screen behind the Done button, so a recording
-  // nobody is watching cannot log a meal on its own.
-  static QUIET_MS = 45000
+  // Nobody describes a meal for two minutes, and a recording left running by a pocket
+  // should stop on its own rather than upload something enormous.
+  static LIMIT_MS = 120000
 
   connect() {
-    this.Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!this.supported) this.buttonTarget.remove()
 
-    if (!this.Recognition) return this.buttonTarget.remove()
-
-    this.listening = false
+    this.recording = false
   }
 
   disconnect() {
-    this.listening = false
-    this.clearTimers()
-    this.close()
+    this.release()
+  }
 
-    if (!this.recognition) return
-
-    // Unhooked before aborting: abort() fires `end`, and `end` is the path that submits.
-    this.recognition.onresult = this.recognition.onerror = this.recognition.onend = null
-    this.recognition.abort()
+  get supported() {
+    return typeof MediaRecorder !== "undefined" && navigator.mediaDevices?.getUserMedia
   }
 
   toggle() {
-    this.listening ? this.finish() : this.start()
+    if (!this.recording) this.start()
   }
 
-  start() {
-    this.transcript = new Transcript()
-    this.problem = null
-    this.listening = true
-
-    this.recognition = new this.Recognition()
-    this.recognition.lang = document.documentElement.lang || "en-US"
-    // Explicitly off, because Android ignores it being on and the pretence cost us: see
-    // `ended` below for what asking for continuous recognition actually bought.
-    this.recognition.continuous = false
-    this.recognition.interimResults = true
-    this.recognition.onresult = (event) => this.heard(event)
-    this.recognition.onerror = (event) => this.failed(event)
-    this.recognition.onend = () => this.ended()
+  async start() {
+    this.chunks = []
+    this.say("")
 
     try {
-      this.recognition.start()
-    } catch {
-      // Already running, which means a double tap got through. Nothing to do.
-      return
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch (error) {
+      return this.say(error.name === "NotAllowedError"
+        ? "Microphone access was refused. Allow it, or type it instead."
+        : "Couldn't start the microphone. Type it instead.")
     }
 
-    this.fieldTarget.value = ""
-    this.show("")
-    this.overlayTarget.classList.remove("hidden")
-    this.stateTarget.textContent = "Listening…"
-    this.say("")
-    this.waitForQuiet()
+    this.recording = true
+    this.recorder = new MediaRecorder(this.stream)
+    this.recorder.ondataavailable = (event) => event.data.size && this.chunks.push(event.data)
+    this.recorder.onstop = () => this.finished()
+    this.recorder.start()
+
+    this.open()
+    this.meter()
+    this.tick()
+    this.limit = setTimeout(() => this.finish(), this.constructor.LIMIT_MS)
   }
 
-  heard(event) {
-    this.show(this.transcript.hear(event.results))
-    this.waitForQuiet()
-  }
-
-  // Restarted for as long as the overlay is open, because Android ends the session at
-  // every pause whatever `continuous` says and there is no setting that changes it — the
-  // one that would, EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, belongs to the
-  // native Intent API and is unreachable from a page. Design §6 is right that this API
-  // stops on silence. What it costs is a chime on each restart, and the odd word lost in
-  // the moment between one session ending and the next beginning.
-  //
-  // Both of those are survivable now only because the words are on screen as they land:
-  // a gap is something you can see and say again, rather than something you discover
-  // after the meal is logged. Not a fix — WP5-b is the fix — but honest.
-  ended() {
-    this.transcript.close()
-
-    if (this.listening) {
-      try {
-        return this.recognition.start()
-      } catch {
-        // Fall through and send what we have.
-      }
-    }
-
-    this.send()
-  }
-
-  // The user says when they are finished. Asking the recogniser to stop is all this does;
-  // its own `end` event is still the one path that submits.
+  // Done. Stopping the recorder is all this does; its own `stop` event is the one path
+  // that uploads, so cancelling and finishing cannot race each other.
   finish() {
-    this.listening = false
-    this.clearTimers()
-    if (this.recognition) this.recognition.stop()
+    if (!this.recording) return
+
+    this.recording = false
+    this.stateTarget.textContent = "Transcribing…"
+    this.recorder.stop()
   }
 
   cancel() {
-    this.listening = false
-    this.clearTimers()
+    this.recording = false
+    this.chunks = []
+    if (this.recorder && this.recorder.state !== "inactive") this.recorder.stop()
+    this.release()
     this.close()
-
-    if (!this.recognition) return
-
-    this.recognition.onresult = this.recognition.onerror = this.recognition.onend = null
-    this.recognition.abort()
-    this.recognition = null
   }
 
-  failed(event) {
-    this.listening = false
+  async finished() {
+    this.release()
 
-    // no-speech is what a quiet room reports, and aborted is us. Neither is worth a
-    // line of red text; the rest are, because "nothing happened" is the worst answer a
-    // button can give.
-    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-      this.problem = "Microphone access was refused. Allow it, or type it instead."
-    } else if (event.error === "network") {
-      this.problem = "Speech recognition needs a connection. Type it instead."
-    } else if (event.error !== "no-speech" && event.error !== "aborted") {
-      this.problem = "Didn't catch that. Try again, or type it instead."
+    const recorded = new Blob(this.chunks, { type: this.recorder.mimeType })
+    this.chunks = []
+
+    if (recorded.size === 0) {
+      this.close()
+      return this.say("Nothing was recorded.")
+    }
+
+    try {
+      this.attach(await this.wav(recorded))
+    } catch {
+      this.close()
+      return this.say("Couldn't read that recording. Try again, or type it.")
+    }
+
+    this.formTarget.requestSubmit()
+  }
+
+  // webm/opus in, 16 kHz mono wav out. The browser owns a decoder and a resampler already
+  // — using them is what lets whisper.cpp read the upload directly, and keeps ffmpeg, and
+  // the password installing it would have needed, off the server.
+  async wav(recorded) {
+    const context = new (window.AudioContext || window.webkitAudioContext)()
+
+    try {
+      const decoded = await context.decodeAudioData(await recorded.arrayBuffer())
+      const offline = new OfflineAudioContext(1, Math.ceil(decoded.duration * SAMPLE_RATE), SAMPLE_RATE)
+      const source = offline.createBufferSource()
+
+      source.buffer = decoded
+      source.connect(offline.destination)
+      source.start()
+
+      return wavFrom(await offline.startRendering())
+    } finally {
+      context.close()
     }
   }
 
-  send() {
-    this.listening = false
-    this.clearTimers()
-    this.recognition = null
+  // A file input rather than a fetch, so Turbo submits it and handles the response the
+  // same way it handles the composer beside it.
+  attach(wav) {
+    const transfer = new DataTransfer()
 
-    const said = this.transcript.text()
-    this.fieldTarget.value = said
-    this.close()
-
-    if (said === "") return this.say(this.problem || "Didn't hear anything.")
-
-    // The turn is only stamped as dictated once something was actually dictated, which
-    // is why this is set here and not in the markup: the composer's mic and its text
-    // field submit the same form, and a typed meal must not claim to be a spoken one.
-    if (this.hasSourceTarget) this.sourceTarget.value = "voice"
-
-    this.say("")
-    this.element.requestSubmit()
+    transfer.items.add(new File([ wav ], "recording.wav", { type: "audio/wav" }))
+    this.audioTarget.files = transfer.files
   }
 
-  // Stops listening without sending. The overlay stays up with whatever was heard, so
-  // finishing is still a deliberate press.
-  waitForQuiet() {
-    this.clearTimers()
-    this.timer = setTimeout(() => {
-      this.listening = false
-      if (this.recognition) this.recognition.stop()
-      this.stateTarget.textContent = "Stopped listening — press Done to send."
-    }, this.constructor.QUIET_MS)
+  // The overlay's whole job, now that there are no words to show yet: proof it can hear
+  // you. The ring follows what the microphone is actually receiving, so silence looks
+  // like silence and a dead microphone looks dead.
+  meter() {
+    const context = new (window.AudioContext || window.webkitAudioContext)()
+    const analyser = context.createAnalyser()
+
+    analyser.fftSize = 512
+    context.createMediaStreamSource(this.stream).connect(analyser)
+
+    const samples = new Uint8Array(analyser.frequencyBinCount)
+    const draw = () => {
+      if (!this.recording) return context.close()
+
+      analyser.getByteTimeDomainData(samples)
+
+      // Loudest departure from silence in this frame; 128 is the zero line for 8-bit.
+      const peak = samples.reduce((loudest, s) => Math.max(loudest, Math.abs(s - 128)), 0)
+
+      this.levelTarget.style.transform = `scale(${1 + Math.min(peak / 40, 1.1)})`
+      this.frame = requestAnimationFrame(draw)
+    }
+
+    draw()
   }
 
-  show(said) {
-    this.heardTarget.textContent = said
+  tick() {
+    this.startedAt = Date.now()
+
+    this.clock = setInterval(() => {
+      const seconds = Math.floor((Date.now() - this.startedAt) / 1000)
+
+      this.clockTarget.textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
+    }, 250)
+  }
+
+  open() {
+    this.overlayTarget.classList.remove("hidden")
+    this.stateTarget.textContent = "Recording…"
+    this.clockTarget.textContent = "0:00"
   }
 
   close() {
     this.overlayTarget.classList.add("hidden")
+    this.levelTarget.style.transform = ""
   }
 
-  clearTimers() {
-    if (this.timer) clearTimeout(this.timer)
-    this.timer = null
+  // The microphone indicator stays lit until every track is stopped, and a phone that says
+  // it is still listening after you pressed Done is not one you would use again.
+  release() {
+    if (this.frame) cancelAnimationFrame(this.frame)
+    if (this.clock) clearInterval(this.clock)
+    if (this.limit) clearTimeout(this.limit)
+
+    this.frame = this.clock = this.limit = null
+    this.recording = false
+
+    if (this.stream) this.stream.getTracks().forEach((track) => track.stop())
+    this.stream = null
   }
 
   say(message) {

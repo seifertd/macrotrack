@@ -16,7 +16,7 @@ class ChatsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    assert_select "form#composer"
+    assert_select "#composer form[action=?]", chat_messages_path
     assert_select "#messages"
   end
 
@@ -32,13 +32,16 @@ class ChatsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "the composer carries a mic and a source that starts out honest" do
+  test "the composer can record as well as type, and they are separate forms" do
     get chat_path
 
-    assert_select "form#composer button[data-action=?]", "dictation#toggle"
-    assert_select "form#composer [data-dictation-target=?]", "overlay"
-    assert_select "form#composer button[data-action=?]", "dictation#finish"
-    assert_select "form#composer input[name=?][value=?]", "chat_message[input_source]", "text"
+    # A form cannot nest and a text field cannot carry a wav, so the mic posts its own.
+    assert_select "#composer form[action=?][enctype=?]", voice_entries_path, "multipart/form-data" do
+      assert_select "input[type=file][name=?]", "voice_entry[audio]"
+      assert_select "button[data-action=?]", "dictation#toggle"
+    end
+    assert_select "#composer [data-dictation-target=?]", "overlay"
+    assert_select "#composer button[data-action=?]", "dictation#finish"
   end
 
   # The indicator is normally switched on by the broadcast the job sends. Arrive after

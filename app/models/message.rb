@@ -5,6 +5,12 @@ class Message < ApplicationRecord
   # once it has been answered, so the buttons don't come back on a reload.
   belongs_to :suggested_meal_entry, class_name: "MealEntry", optional: true
 
+  # §6: keep the audio. It costs nothing now that it is our own disk, and it is the only
+  # way to ever answer "did it mishear me, or did the model misjudge it" — the transcript
+  # alone cannot tell those apart. It hangs off the message rather than the entry because
+  # a recording can produce two entries, or none.
+  has_one_attached :audio
+
   ROLES = %w[ user assistant ].freeze
   INPUT_SOURCES = %w[ text voice ].freeze
 

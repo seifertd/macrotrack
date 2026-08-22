@@ -1,28 +1,24 @@
-<%# WP5-a. The recogniser stops listening whenever you pause and has to be restarted, and
-    Android chimes each time it does — a system sound no web page can silence. That is
-    survivable; what was not is that a word lost between two sessions was invisible until
-    the meal had already been logged. So the words appear here as they land, the beep is
-    explained rather than mysterious, and nothing is sent until you say so. %>
-<div data-dictation-target="overlay" role="dialog" aria-modal="true" aria-label="Dictating"
+<%# WP5-b. The microphone is ours now, so this can show something the browser's recogniser
+    never let us show: the sound of your voice. There is no live transcript any more —
+    the words arrive a few seconds after Done — so the ring following what the microphone
+    actually receives is what tells you it is hearing you. Silence looks like silence. %>
+<div data-dictation-target="overlay" role="dialog" aria-modal="true" aria-label="Recording"
      class="fixed inset-0 z-50 hidden bg-slate-900/95 backdrop-blur">
   <div class="mx-auto flex h-full w-full max-w-xl flex-col items-center px-6 py-10 text-center">
-    <div class="relative flex h-24 w-24 shrink-0 items-center justify-center">
-      <span data-dictation-target="halo"
-            class="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-500/40"></span>
+    <div class="relative flex h-28 w-28 shrink-0 items-center justify-center">
+      <span data-dictation-target="level"
+            class="absolute inline-flex h-20 w-20 rounded-full bg-rose-500/30 transition-transform duration-75"></span>
       <span class="relative inline-flex h-20 w-20 items-center justify-center rounded-full bg-rose-500 text-white">
         <%= render "shared/mic_icon" %>
       </span>
     </div>
 
-    <p data-dictation-target="state" class="mt-5 text-sm font-semibold text-rose-200">Listening…</p>
+    <p data-dictation-target="state" class="mt-5 text-sm font-semibold text-rose-200">Recording…</p>
+    <p data-dictation-target="clock" class="mt-1 font-mono text-3xl tabular-nums text-white">0:00</p>
 
-    <%# aria-live so the words are announced, not only drawn. %>
-    <p data-dictation-target="heard" aria-live="polite"
-       class="mt-4 min-h-24 w-full overflow-y-auto text-left text-lg leading-relaxed text-white empty:hidden"></p>
-
-    <p data-dictation-target="hint" class="mt-4 text-xs leading-relaxed text-slate-400">
-      Keep going — pauses are fine. A short beep just means it picked back up.
-      If a word is missing above, say it again before you finish.
+    <p class="mt-5 max-w-sm text-sm leading-relaxed text-slate-400">
+      Take as long as you like. Pause, change your mind, correct yourself — none of it
+      stops the recording, and the transcript arrives a few seconds after you finish.
     </p>
 
     <div class="mt-auto flex w-full flex-col gap-3 pt-8">
