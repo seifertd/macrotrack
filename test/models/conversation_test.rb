@@ -55,6 +55,23 @@ class ConversationTest < ActiveSupport::TestCase
     assert_equal "a single chicken taquito", @conversation.last_user_text
   end
 
+  test "a turn in flight is one the user has spoken for and the model has not answered" do
+    assert_not @conversation.awaiting_reply?, "an empty thread is not waiting on anything"
+
+    say "two eggs and toast"
+    assert @conversation.awaiting_reply?
+
+    assistant [ { "type" => "text", "text" => "Logged." } ]
+    assert_not @conversation.awaiting_reply?
+  end
+
+  test "a turn that has been in flight for two minutes has failed, not stalled" do
+    say "two eggs and toast"
+    @conversation.messages.last.update!(created_at: 3.minutes.ago)
+
+    assert_not @conversation.awaiting_reply?, "an indicator that never stops is worse than one that never starts"
+  end
+
   test "last_input_source defaults to text and survives tool result turns" do
     assert_equal "text", @conversation.last_input_source
 
