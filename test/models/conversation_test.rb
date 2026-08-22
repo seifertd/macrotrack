@@ -81,20 +81,6 @@ class ConversationTest < ActiveSupport::TestCase
     assert_equal "voice", @conversation.last_input_source
   end
 
-  # The controller path is covered in meal_entries_controller_test; this covers all the
-  # others. `delete` skips every Rails callback, so the only thing that can prevent a
-  # foreign key violation here is the key itself being declared ON DELETE SET NULL — and
-  # a rake task, a console session or a cascade all take this path rather than that one.
-  test "the pointer at the last logged entry is let go of by the database, not only the model" do
-    entry = @conversation.user.meal_entries.create!(
-      source: "voice", calories: 100, consumed_at: 1.hour.ago
-    )
-    @conversation.update!(last_meal_entry: entry)
-
-    assert_nothing_raised { entry.delete }
-    assert_nil @conversation.reload.last_meal_entry_id
-  end
-
   private
     def say(text, input_source: "text")
       @conversation.messages.create!(

@@ -1,6 +1,5 @@
 class Conversation < ApplicationRecord
   belongs_to :user
-  belongs_to :last_meal_entry, class_name: "MealEntry", optional: true
   has_many :messages, -> { chronological }, dependent: :destroy, inverse_of: :conversation
 
   # Design §9: send the last ~10 turns. This is a quality argument, not a cost one —

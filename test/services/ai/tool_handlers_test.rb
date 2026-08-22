@@ -26,7 +26,6 @@ class Ai::ToolHandlersTest < ActiveSupport::TestCase
     assert_equal 520, entry.calories
     assert_equal "bowl of chili", entry.food.name
     assert_equal "Assumed a pub-sized bowl.", entry.assumptions
-    assert_equal entry, @conversation.reload.last_meal_entry
   end
 
   test "log_meal stamps the entry with the transcript and how it arrived" do

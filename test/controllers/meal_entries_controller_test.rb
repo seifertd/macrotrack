@@ -141,24 +141,6 @@ class MealEntriesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to day_path(Date.new(2026, 8, 17))
   end
 
-  # The meal you just logged by voice is the chat's last_meal_entry, and its foreign key
-  # made deleting it a 500 in production on 22 August — the one entry you would most want
-  # to delete was the one entry that could not be.
-  test "deleting the entry the chat still points at works, and lets go of the pointer" do
-    entry = @user.meal_entries.create!(
-      source: "voice", calories: 100, consumed_at: Time.utc(2026, 8, 17, 15, 30)
-    )
-    conversation = @user.conversation!
-    conversation.update!(last_meal_entry: entry)
-
-    assert_difference -> { @user.meal_entries.count }, -1 do
-      delete meal_entry_path(entry)
-    end
-
-    assert_nil conversation.reload.last_meal_entry_id
-    assert_redirected_to day_path(Date.new(2026, 8, 17))
-  end
-
   test "deleting an entry removes it" do
     entry = @user.meal_entries.create!(
       source: "manual", calories: 100, consumed_at: Time.utc(2026, 8, 17, 15, 30)
