@@ -217,9 +217,39 @@ add_index :exercise_entries, [:user_id, :external_id], unique: true, where: "ext
 
 ## 6. Voice — the part we actually care about
 
-The ask: **tap a mic button in the app, say a long rambling sentence, get it logged.** Not hands-free, not "Hey Google."
+> **Correction (2026-08-22): built, and this section was mostly right — including the part
+> that was ignored.** The shape below shipped as written: MediaRecorder, `POST /voice_entries`,
+> transcript, `AiChatTurnJob`, keep the audio. Three things changed.
+>
+> **The provider.** "Start with a hosted API… self-hosting is a viable phase-2 move… do it only
+> if you object to the third-party dependency, not to the bill." That had it backwards.
+> Self-hosting `whisper.cpp` on das turned out to be *less* work than a hosted API, not more:
+> no signup, no card, no key in credentials, no `sudo` — `cmake` installs into `~/opt` as a
+> userspace binary and whisper.cpp decodes the upload itself, so das has no `ffmpeg` either.
+> The one-method interface below is built exactly as specified, so a provider still drops in
+> behind it. §2's price table stands as the contingency it always was.
+>
+> **The vocabulary hint was wrong, and it is the one claim here that measurement reversed.**
+> See the note under it: prompting whisper with the `foods` table did not fix the food noun it
+> was meant to fix, and it silently deleted a quantity. `Stt.transcribe` takes no `hint:`.
+>
+> **The latency budget moved.** Transcription is about eight seconds on das rather than the
+> one-to-two below, which the staging still absorbs — but the numbers in that table are not
+> what happens.
 
 ### Don't use the Web Speech API
+
+> **Confirmed by two days of ignoring it (2026-08-22).** WP5-a was built on
+> `webkitSpeechRecognition` anyway, on the argument that this section was about capability
+> and the remaining case for voice was ergonomics. Both failure modes named below then
+> happened, in the order they are named. `continuous` being unreliable arrived first, as a
+> transcript that repeated every reading of the sentence — *"I'mI'm going toI'm going to
+> have…"*. Stopping on silence arrived second, and almost word for word: the user paused,
+> said "…and a biscuit", and the biscuit was not there. The ellipsis in the sourdough example
+> below is exactly where it broke. There is no configuration between those two failures —
+> restarting the session on each end produces the first, letting it end produces the second —
+> and the setting that would fix it, `EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS`,
+> belongs to the native Intent API and is unreachable from a page.
 
 `webkitSpeechRecognition` works in Chrome on Android and is free, which makes it the obvious first thing to reach for. It's the wrong tool here for one specific reason: **it stops on silence.** A pause mid-sentence ends the recognition session, `continuous` mode is unreliable across versions, and the failure mode is exactly the input we care about — *"a bowl of the chili from last night, maybe a cup and a half… plus a slice of sourdough with butter"* gets truncated at the ellipsis. Same objection to the Gboard mic: it works in a `<textarea>`, but it commits to the on-screen keyboard being up and it mangles food nouns.
 
@@ -248,6 +278,12 @@ Why this shape:
 
 **Select on accuracy, not latency.** A few seconds of processing is acceptable (see UI below), which removes the usual reason to compromise — take the model that gets "chana masala" right over the one that's a second faster.
 
+> **Superseded (2026-08-22): self-hosted from the start.** Everything in the rest of this
+> subsection is sound reasoning from a wrong premise — that hosted is the cheap first step and
+> self-hosting is the optimization you graduate to. Measured, it was the other way round. What
+> made it easy is that this section's own latency tolerance is generous enough for CPU
+> inference, which the paragraph after next spots and then under-rates.
+
 Start with a hosted API (one HTTP call, best accuracy, no ops). Whisper-class transcription runs on the order of **$0.006/minute** — verify current pricing, but the magnitude is what matters:
 
 > 2 people × ~5 entries/day × ~15 seconds ≈ **2.5 min/day ≈ 75 min/month ≈ $0.45/month.**
@@ -264,6 +300,15 @@ end
 
 Self-hosting `whisper.cpp` on the Linode is a viable phase-2 move, and the latency tolerance makes it *more* viable than it would otherwise be — a `base.en`/`small.en` model transcribes a 20-second clip in a few seconds on CPU, which is inside budget. But it's an optimization of $0.45/month, so do it only if you object to the third-party dependency, not to the bill.
 
+> **This paragraph was right about the mechanism and wrong about the timing (2026-08-22).** It
+> is phase one, not phase two, because it costs less than the hosted path in every sense
+> including effort. The measured figures on das, two shared cores: `small.en` transcribes a
+> 21-second clip in about 8 seconds with greedy decoding and flash attention, peaking at 750MB.
+> `base.en` is twice as fast and **not accurate enough** — it heard "ITA meatballs" for IKEA on
+> the first real recording. Treating "whisper-class" as one accuracy tier, as this section
+> does, is the mistake to avoid: the model size is the decision, and the smaller ones lose
+> exactly the proper nouns this section cares about.
+
 **Bias the transcript with our own vocabulary.** Whisper-class APIs accept a prompt/vocabulary hint. Seed it from the `foods` table:
 
 ```ruby
@@ -274,6 +319,27 @@ hint = Food.joins(:meal_entries)
 ```
 
 Forty food names we actually eat, prepended to every transcription. Costs nothing, meaningfully improves the nouns that matter, and gets better the longer we use it.
+
+> **Measured false, and harmful (2026-08-22).** This is the one claim in §6 that the evidence
+> reversed rather than adjusted, and it is worth stating bluntly because it looked obviously
+> right twice — once when this was written, and again as the fix for the "ITA meatballs"
+> mishearing it was ostensibly designed for.
+>
+> Prompting whisper with exactly the query above, against the recording that produced that
+> mishearing: it **did not recover the name**, and it **deleted "about 10 of them"** from the
+> middle of the sentence. On a second clip it dropped a self-correction. A mangled name is a
+> failure Claude repairs from context and §7's retrieval hints are built to catch; a missing
+> quantity is a wrong calorie figure with nothing downstream to notice it.
+>
+> This is not whisper being poorly prompted. Its `prompt` is a continuation-conditioning
+> parameter rather than a keyword booster — §2 says as much about Whisper-family biasing and
+> then this section forgets it. Deepgram's Keyterm Prompting is a different mechanism and may
+> well work as described here; it was never needed, because `small.en` unprompted gets the
+> nouns right.
+>
+> So `Stt.transcribe` takes a path and nothing else, and `Stt::Whisper` carries a comment
+> saying why, so that nobody adds the hint back on reasoning that reads as soundly as this
+> paragraph does.
 
 ### UI
 
@@ -291,6 +357,16 @@ Forty food names we actually eat, prepended to every transcription. Costs nothin
 | Logged | ~5s | Confirmation card + updated header totals |
 
 The transcript landing at ~2s is the important one: from there it looks like an ordinary chat where you can see what you said and the assistant is replying. Nobody experiences that as a five-second wait.
+
+> **Shipped, with the clock moved (2026-08-22).** The staging is exactly as designed and it is
+> the reason ~8 seconds of CPU transcription is livable. What differs: transcribing is ~8s
+> rather than ~1–2s, so the transcript lands around 8s and the confirmation around 12s. There
+> is no upload progress step — a 16 kHz mono wav of a twenty-second meal is ~700KB and goes in
+> under a second on wifi — and no live waveform during recording; the ring in the overlay
+> follows the microphone's actual input level instead, which serves the same purpose of
+> proving it is still listening. **Not built:** the IndexedDB retry queue for a failed upload,
+> and the screen wake lock. The wake lock is the one worth doing — this section is right that
+> screen-lock-mid-utterance is where a PWA behaves worse than a native app.
 
 Other notes:
 
