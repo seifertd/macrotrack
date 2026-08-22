@@ -2,9 +2,9 @@
 
 Companion to `macro-tracker-design.md` (rev. 3). That doc says *what and why*; this one says *in what order, with which commands, and how you know a step is done*.
 
-Ordered so the app is on both phones by the end of WP2, sharing meals between the two of us by the end of WP6a, logging by conversation by the end of WP4, and logging by voice by the end of WP5.
+Ordered so the app is on both phones by the end of WP2, sharing meals between the two of us by the end of WP6a, logging by conversation by the end of WP4, and logging by voice by the end of WP5-a.
 
-**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → **WP7** → **WP7.5** → **WP4.4** → **WP4.5-a** → WP5 → WP8 → WP9 → WP10. **WP4.5-b is not scheduled** — it has three open questions and no deadline, because the backlog it would have served is already imported.
+**Build order:** WP1 → WP2 → WP3 → **WP6a** → WP4 → **WP6b** → **WP7** → **WP7.5** → **WP4.4** → **WP4.5-a** → **WP5-a** → WP8 → WP9 → WP10. **WP4.5-b is not scheduled** — it has three open questions and no deadline, because the backlog it would have served is already imported.
 
 Numbers are stable identifiers, not sequence. Three packages have moved since the first draft — barcode ahead of voice, and repeat-meals ahead of everything else — and keeping their numbers means existing cross-references still resolve. The reordering rule has been the same each time: **whatever removes real friction soonest, for the least work.**
 
@@ -78,7 +78,7 @@ Deferring the *real DNS record* is free. Deferring the **subdomain-vs-`www.dseif
 - [x] **Postgres role and databases on das** — created by `script/setup_production_db.sh`, which is idempotent and reads the port from `pg_lsclusters` rather than hardcoding it. The four databases are pre-created and owned by `macrotrack`, so the role needs no `CREATEDB`. `pg_trgm` is created by the superuser up front, which turns the migration's `enable_extension` into a no-op. The password is generated on the host and written straight into `shared/config/database.yml` (mode 600, a Capistrano `linked_file`) — it is not in Rails credentials.
 - [x] **`pg` gem compiles on das** — verified by the first deploy's `bundle install`.
 - [x] **DNS A record** for `macros.dseifert.net` → `45.79.27.47`. Authoritative on Namecheap's `registrar-servers.com` nameservers (not Linode DNS), propagated, and TLS issued.
-- [x] **Anthropic API key** — in `config/credentials.yml.enc` under `anthropic.api_key`, added 2026-08-18. A Claude Pro subscription does **not** include API access; this is a separate Console org on prepaid credit. Still needed: an STT provider key (§2 below) for WP5. Note the deploy step in WP4 — the credentials file is a Capistrano linked file, so a key added locally does not reach das until it is copied up.
+- [x] **Anthropic API key** — in `config/credentials.yml.enc` under `anthropic.api_key`, added 2026-08-18. A Claude Pro subscription does **not** include API access; this is a separate Console org on prepaid credit. An STT provider key (§2 below) is **not** needed unless WP5-b is built — WP5-a uses the platform's own recognizer and calls nothing. Note the deploy step in WP4 — the credentials file is a Capistrano linked file, so a key added locally does not reach das until it is copied up.
 
 ---
 
@@ -104,9 +104,11 @@ Your volume, from §6: 2 people × ~5 entries/day × ~15s ≈ **75 minutes/month
 - **Groq is the wildcard worth one extra column in the bake-off.** At $0.05/month with 228× realtime, if its raw Whisper transcription happens to nail your foods, nothing else can compete on simplicity-per-dollar.
 - **Watch the add-on trap.** Advertised base rates assume no extras; diarization, redaction, and summarization can multiply the effective rate 2–4×. You need none of them — plain transcription plus keyterms. Don't let a dashboard talk you into more.
 
-**Do the bake-off before writing any voice UI** (WP5.2). One real 20-second clip of one of you rambling about dinner, four providers, count the food nouns each one gets right. Free tiers cover this comfortably.
+**Do the bake-off before writing any hosted-STT UI.** One real 20-second clip of one of you rambling about dinner, four providers, count the food nouns each one gets right. Free tiers cover this comfortably.
 
-**Add a fifth column: the phone keyboard's own dictation.** It logged the first four real meals on 2026-08-18 and got every food noun right, for free, so it is the baseline any paid provider has to beat — see WP5. Make the clip hard enough to actually separate them: a recipe name, a self-correction, kitchen noise.
+**Add two more columns, and they are both free incumbents.** The phone keyboard's own dictation logged the first four real meals on 2026-08-18 and got every food noun right; the platform recognizer WP5-a is built on is the same class of thing with one less tap. A paid provider has to be *visibly* better than the better of those two before it earns the dependency. Make the clip hard enough to actually separate them: a recipe name, a self-correction, kitchen noise.
+
+**This whole section is now gated behind WP5-b** (split 2026-08-22), and 5-b is unscheduled — it waits on evidence from 5-a that on-device recognition isn't enough. Nothing here is on the critical path until then; re-verify the prices when it comes off the shelf.
 
 ---
 
@@ -234,7 +236,7 @@ So the live preview was checked the honest way: drive it, look at it. Tapping 0.
 
 **The rule this settles, for every browser-only feature after it: keep the seam thin, and test the server side of it.** This paragraph used to end by saying WP5 (recording) and WP7 (barcode) needed browser tests far more than this screen did, and that neither could be covered any other way. WP7 then shipped and proved the second half wrong. `barcode_controller.js` ends every failure path — no `BarcodeDetector`, no supported formats, camera refused, no camera, camera won't start — at the same `giveUp()`, which hides the video and leaves the typed-number form alone; and that form is a plain server-rendered GET precisely so the fallback does not depend on the thing that just failed. The result is 13 tests in `scans_controller_test.rb` covering the entire feature, with the untestable surface down to three calls: `getUserMedia`, `detector.detect`, `window.location.assign`. That is a phone pointed at a yogurt tub, not a CI rig.
 
-WP5 gets the same treatment, and its fallback is better than WP7's. §2 records that the phone keyboard's own dictation already logs meals correctly, for free — so when the record button fails, you are standing in the chat composer that is already built and already tested. The browser-only part of voice is `getUserMedia` → `MediaRecorder` → POST a blob. Everything from the POST onward — the endpoint, the STT call, the vocabulary hint from §6's `foods` query, the handoff to `AiChatTurnJob`, the `source: "voice"` attribution — is ordinary controller-and-service testing, with `Ai::Fake` and Faraday's test adapter as the seams that already exist. Automating the recording itself would mean `--use-fake-device-for-media-stream`, a synthetic clip and faked permission prompts: the same rig that produced the 2-in-6 above.
+WP5 gets the same treatment, and its fallback is better than WP7's. (Split on 2026-08-22 — the browser-only surface described here is WP5-b's; WP5-a's is smaller still, one `SpeechRecognition` object, and ends in the same composer.) §2 records that the phone keyboard's own dictation already logs meals correctly, for free — so when the record button fails, you are standing in the chat composer that is already built and already tested. The browser-only part of voice is `getUserMedia` → `MediaRecorder` → POST a blob. Everything from the POST onward — the endpoint, the STT call, the vocabulary hint from §6's `foods` query, the handoff to `AiChatTurnJob`, the `source: "voice"` attribution — is ordinary controller-and-service testing, with `Ai::Fake` and Faraday's test adapter as the seams that already exist. Automating the recording itself would mean `--use-fake-device-for-media-stream`, a synthetic clip and faked permission prompts: the same rig that produced the 2-in-6 above.
 
 **So capybara and selenium-webdriver were removed from the Gemfile on 2026-08-20**, along with `image_processing`, `thruster`, `faraday-multipart` and `tzinfo-data` — 16 gems out of the lockfile. Nothing had referenced them since the deleted suite, and the CI system-test job went in `0d8fc56`. If a browser-only feature ever genuinely resists being reduced to a thin seam, `bundle add capybara selenium-webdriver` brings them back — but reach for the seam first.
 
@@ -612,11 +614,11 @@ Where servings come from, in order of how much they can be trusted:
 
 ---
 
-## WP5 — Voice *(target: two evenings)*
+## WP5 — Voice *(split 2026-08-22: 5-a next, 5-b unscheduled)*
 
 Design refs: §6, §14.4. **Goal: tap, ramble, done.**
 
-### The case for this package narrowed on 2026-08-18 — read this before starting
+### The case for this package narrowed on 2026-08-18 and split on 2026-08-22 — read this before starting
 
 All four of the first night's entries were dictated into the chat field with the phone keyboard's own mic, and every one came through clean. Gboard transcribed **"Ikea meatballs", "mashed potatoes", "gravy", "roasted broccoli", "mayo, mustard and ketchup"** correctly — precisely the food nouns §6 worried about and specified Deepgram's Keyterm Prompting to solve. It also handled a false start (*"Meatballs I ate six Ikea meatballs half a cup of…"*) that the model absorbed without comment, which is §9's transcript paragraph earning its place.
 
@@ -627,21 +629,49 @@ So speech already works, at zero cost and zero engineering, and those entries ar
 3. **Vocabulary biasing that improves as `foods` grows.** This is the only one keyboard dictation can never match, and it's also the one with the least evidence behind it so far: n=4, all common foods. It will matter more for the WP4.5-a recipe names than it does for a cheeseburger — and as of 2026-08-21 there are 190 of them in production, so this is finally testable rather than hypothetical.
 4. **Keeping the audio** (§6), which is genuinely invaluable while tuning and is simply not available through the keyboard.
 
-**Two consequences for the bake-off in §2.** Keyboard dictation is now the baseline to beat, not a fallback — run the clip through it alongside the paid providers and require a provider to be *visibly* better before taking the dependency. And the clip should be a hard one: a recipe name, a mumble, a self-correction, background kitchen noise. Four clean sentences from a quiet room will not separate the candidates.
+**The split follows from that list.** 1 and 2 are the two with evidence behind them, and neither needs a server, a provider, or a byte of audio to leave the phone — the platform's own recognizer does both. 3 and 4 are the speculative pair, and they are what the entire cost of this package buys: the provider account, the `Stt::*` seam, `faraday-multipart` back in the Gemfile, Active Storage blobs to back up forever, and the §2 bake-off, which is *genuinely* blocking rather than nice-to-have. Paying that up front for two maybes, when the cheap half can be in your hand in an evening and will tell you whether the expensive half is needed, is the wrong order.
 
-None of this says don't build it. It says the reason to build it is ergonomics, and the plan should stop claiming it is the thing that makes voice possible.
+So: **5-a ships now, 5-b waits for evidence from 5-a.** This is the same bar WP11 sets — revisit after real use — applied to a package that was about to be built on a hunch.
+
+**Two consequences for the bake-off in §2.** It moves into 5-b, and it gains a second baseline: keyboard dictation *and* the platform recognizer are now both free incumbents, and a paid provider has to be *visibly* better than the better of the two. The clip should be a hard one: a recipe name, a mumble, a self-correction, background kitchen noise. Four clean sentences from a quiet room will not separate the candidates.
+
+### WP5-a — One tap into the platform's own recognizer *(target: one evening; next)*
+
+Small, because WP4 already built everything downstream of a transcript and left it unused: `Message::INPUT_SOURCES` is already `%w[ text voice ]`, `MealEntry::SOURCES` already contains `voice`, `Ai::ToolHandlers` already stamps entries from `conversation.last_input_source`, and `Ai::Prompts::INSTRUCTIONS` already opens by telling the model to expect a transcript with filler and self-correction. What is missing is the thing that produces the transcript.
+
+1. **Spike it first — this one is genuinely blocking.** `webkitSpeechRecognition` has been in Safari for years, but inside an **iOS home-screen PWA in standalone mode** it has a history of misbehaving: no permission prompt, `not-allowed`, or working from a Safari tab and not from the icon. That is exactly how this app is used, so it decides the package. A throwaway page with one button that starts recognition and dumps what it hears, opened **from the MacroTrack icon**, on both phones. If it fails, stop: the fallback is not the keyboard mic, it is `MediaRecorder` plus a server, which is 5-b.
+2. **One `dictation` Stimulus controller**, mounted twice. Click starts recognition; interim results stream into a text field so you can watch it hear you; end-of-speech submits the form. The click has to be the gesture the browser sees, which is why each button listens *where it was tapped* rather than navigating to the chat screen and starting there.
+3. **Mount one: the chat composer.** A mic beside Send, for when you are already in the conversation.
+4. **Mount two: the Add screen**, as the first path, above "Log by chat" — it wraps a hidden form posting to the existing `chat_messages_path`. One tap from Add to a submitted meal, and no new endpoint exists.
+5. **`ChatMessagesController#create` accepts `input_source`**, whitelisted to the two legal values, defaulting to text. This is what finally stamps a dictated meal `source: "voice"` — the complaint at the top of this package, unaddressed since 18 August.
+6. **The live interim transcript supersedes §6's staged-feedback table.** That table exists to convert a five-second server round trip into a conversation; on-device recognition has no round trip, so the words appear as you say them and the staging has nothing left to hide. Don't build it.
+7. **No audio is kept, and that is the deliberate loss.** §6 is right that the recording is invaluable while tuning. What survives is the transcript, as `raw_input` on the entry, which is most of that value. Wanting the audio back is evidence for 5-b, and it is exactly the kind worth waiting for rather than guessing at.
+
+**How this gets tested** — the thin-seam rule, same as WP7.5 and WP7. Step 5 is an ordinary controller test. Steps 2–4 are browser-only and get driven by hand, on both phones, from the home-screen icon. What keeps that safe is the property WP5 always had: failing to record leaves you in the chat composer, which is already covered.
+
+**Done when:** you have logged dinner from the kitchen, with wet hands, in one tap — and the entry says `voice`.
+
+### WP5-b — Hosted STT, and keeping the audio *(unscheduled; needs evidence from 5-a)*
+
+WP5 as it was originally written. It stays on the shelf until 5-a has had a week of real use and at least one of these is true:
+
+- **Recipe names come back mangled** often enough to count. 190 of them in production, so this is measurable rather than hypothetical — and it is claim 3 above finally facing evidence.
+- **The recognizer won't run** in the standalone PWA on one of the two phones, which turns 5-b from optional into the only route.
+- **You want the audio back** for tuning, which is claim 4 facing the same test.
+
+Then it is the original build:
 
 1. **`Stt::Client`** with the one-method interface from §6, plus `Stt::Hosted` and `Stt::Fake`. Faraday multipart for the upload — `bundle add faraday-multipart` first, it was removed on 2026-08-20 as an unused dependency and this package is what brings it back.
-2. **Run the bake-off first, before writing the UI.** §17 asks for this and it's genuinely blocking: record one real 20-second clip of one of you rambling about dinner, run it through two or three providers, and pick on **food-noun accuracy**, not latency. Save the clip in `test/fixtures/files/` — it becomes your regression fixture forever.
-3. **`POST /voice_entries`**: accepts the blob, attaches it via Active Storage (**keep the audio** — §6 is right that it's invaluable while tuning), transcribes with the vocabulary hint from §6's `foods` query, then hands off to `AiChatTurnJob` with `source: "voice"`.
+2. **Run the bake-off first, before writing any UI.** §17 asks for it and it is blocking: one real 20-second clip of one of you rambling about dinner, run through two or three providers *and* both free incumbents, picked on **food-noun accuracy**, not latency. Save the clip in `test/fixtures/files/` — it becomes your regression fixture forever. §2 settles on Deepgram Nova-3 as the starting point; that is a shortlist, not a commitment.
+3. **`POST /voice_entries`**: accepts the blob, attaches it via Active Storage (**keep the audio** — that is the point of this half), transcribes with the vocabulary hint from §6's `foods` query, then hands off to `AiChatTurnJob` with `source: "voice"`.
 4. **Recording Stimulus controller**: `getUserMedia` + `MediaRecorder` (`audio/webm;codecs=opus`). **Tap to start, tap to stop.** Live waveform + elapsed timer.
 5. **Request a screen wake lock while recording** (`navigator.wakeLock.request("screen")`, released on stop). §6 flags screen-lock-mid-utterance as the most likely place the PWA behaves worse than native — this is the mitigation, and it's four lines. Test it on both phones deliberately: start recording, let the screen go dark, keep talking.
-6. **Stage the feedback exactly as §6's table specifies.** The transcript landing at ~2s as your own chat message is the load-bearing detail — it converts a five-second wait into an ordinary conversation. Don't collapse it into one spinner; that throws away the whole design.
+6. **Stage the feedback exactly as §6's table specifies** — here it earns its place, because here there really is a five-second wait to hide. The transcript landing at ~2s as your own chat message is the load-bearing detail. Don't collapse it into one spinner.
 7. **Keep the transcript visible** under the parsed result permanently.
 
-**How this gets tested** — the thin-seam rule from WP7.5, which WP7 has now shipped twice over. Steps 1, 3 and 6 are the server side and get ordinary controller and service tests: `Stt::Fake` and Faraday's test adapter give you the seams without a network call, and the bake-off clip from step 2 is the fixture. Steps 4, 5 and the waveform are browser-only and get validated by hand, on both phones — the wake-lock case in particular has to be driven physically, and no rig would have caught it anyway. What makes this safe is that failing to record leaves you in the chat composer, which is already covered; keep it that way and the untestable surface stays a few calls wide.
+**How this gets tested** — steps 1, 3 and 6 are the server side and get ordinary controller and service tests: `Stt::Fake` and Faraday's test adapter give you the seams without a network call, and the bake-off clip from step 2 is the fixture. Steps 4, 5 and the waveform are browser-only and get validated by hand — the wake-lock case has to be driven physically, and no rig would have caught it anyway.
 
-**Done when:** you've logged dinner by voice, from the kitchen, with wet hands, while the screen locked — and three weeks later you can still see what you said.
+**Done when:** you've logged dinner by voice, from the kitchen, with wet hands, while the screen locked — and three weeks later you can still hear what you said.
 
 ---
 
@@ -707,8 +737,14 @@ WP1 skeleton+auth+manual ──▶ WP2 deploy+PWA ──▶ WP3 backups
                     WP7 barcode ──▶ WP4.4 reach a food ──▶ WP4.5-a bulk import ✅
                             │       (split out of WP4.5 2026-08-19:            │
                             │        141 imports need a screen to be           ▼
-                            │        checked on before they exist)      WP5 VOICE ◀── ergonomics,
-                            │                                                          not capability
+                            │        checked on before they exist)      WP5-a VOICE ◀── ergonomics,
+                            │                                             one tap,        not capability
+                            │                                             no server
+                            │                                                 │
+                            │                                                 ▼
+                            │                                           WP5-b hosted STT ──▶ unscheduled;
+                            │                                           + keep the audio     only if 5-a
+                            │                                                                proves it short
                             │
                             │                     WP4.5-b one recipe at a time ──▶ unscheduled;
                             │                     needs an input decision and a review screen
@@ -729,7 +765,7 @@ Realistic total: **10–14 evenings** to the end of WP6, which is the version yo
 2. **Repo** — ✅ `seifertd/macrotrack`, private, created and pushed. das's SSH access verified.
 3. **Timezone** — `America/Los_Angeles` in the seeds, and it's what the local PG 18 cluster picked up by itself.
 4. **Database** — Postgres **18.6**, both machines. Not das's existing 14, and not 19 (GA is ~a month away).
-5. **STT** — **Deepgram** (settled 2026-08-17). Nova-3 with Keyterm Prompting; §2 has the costs. The WP5.2 bake-off is now a sanity check on food nouns rather than a provider choice.
+5. **STT** — **Deepgram** (settled 2026-08-17), *and unsettled again on 2026-08-22*: WP5-a ships voice with no provider at all, so this decision now applies only if WP5-b is ever built. Nova-3 with Keyterm Prompting remains the starting point and §2 has the costs; the bake-off is a sanity check on food nouns rather than a provider choice.
 
 ## Still needs your answer
 
