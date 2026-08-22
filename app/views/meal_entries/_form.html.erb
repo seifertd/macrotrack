@@ -42,7 +42,7 @@
     </div>
     <div>
       <%= form.label :consumed_at, "When", class: label %>
-      <%= form.datetime_field :consumed_at, required: true, class: field %>
+      <%= form.datetime_field :consumed_at, required: true, include_seconds: false, class: field %>
     </div>
   </div>
 
