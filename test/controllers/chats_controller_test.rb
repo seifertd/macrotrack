@@ -20,6 +20,18 @@ class ChatsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#messages"
   end
 
+  # Without this the app keeps running the JavaScript it booted with until someone
+  # reloads by hand, because nothing importmap_tags renders is tracked and Turbo swapping
+  # a body never re-imports a module.
+  test "a javascript deploy is something Turbo can notice" do
+    get chat_path
+
+    assert_select "meta[name=?][data-turbo-track=?]", "importmap-digest", "reload" do |tags|
+      assert_equal Rails.application.importmap.digest(resolver: ApplicationController.helpers),
+        tags.first["content"]
+    end
+  end
+
   test "the composer carries a mic and a source that starts out honest" do
     get chat_path
 
