@@ -473,6 +473,19 @@ Worth knowing before trusting any embedded nutrition table: **Doug's own Chicken
 
 `rake 'foods:import[db/seeds/foods.csv]'` on das, 2026-08-21: **190 created, 0 updated.** Zero name collisions with the 29 rows already there, 26 of which are chat-created names carrying no nutrition at all. Production now holds **219 foods, 193 loggable, 59 with a serving chip**.
 
+### Three rows were corrected after they were already live (2026-08-22)
+
+Not a footnote — this is the strongest evidence 4.5-b has, so read it as a finding rather than a changelog.
+
+| Row | Was | Now | Found by |
+|---|---|---|---|
+| `Pancakes Alton Brown` | 28.4 g · 43 kcal · 151/100g | **`Pancakes`**, 36 g · 61 kcal · **170**/100g | Doug recalling the recipe he *currently* cooks |
+| `Sauce Deuxelles` | 130/100g, macros rescaled from EasyFit | **95.5**/100g, macros re-derived from the recipe | the actual recipe surfacing in `Fondu Sauces.pdf` |
+
+The pancake row is the instructive one. Its name attributed the recipe to Alton Brown; nothing in either corpus does. The file it matched — "A Good Pancake Recipe", a 2005 web print-out, not the handwritten card I claimed it was — agrees with Doug's own figure on density within 5%, the closest agreement of any overlapping pair in the corpus. **And it was still wrong**, because he has since swapped 1¼ c flour for ¾ c flour plus ½ c almond flour, and gets 18 pancakes out of the batter rather than 12–14. Neither corpus knew that. No amount of better parsing would have found it.
+
+**So the rule for 4.5-b is that human review is not a safety net over bad extraction — it is where a whole class of correct-looking answers gets fixed.** A recipe can be faithfully transcribed, correctly costed, and corroborated by a second source, and still not be the food that gets eaten. That argues for a review screen that shows the *ingredient breakdown* and lets a quantity be edited, rather than one that shows a finished per-100g figure and asks for a yes or no.
+
 **Done when:** ✅ you can log a portion of a recipe you cooked by naming it, and the macros come from the recipe rather than from a fresh guess.
 
 ### Deliberately not built
@@ -713,9 +726,6 @@ Realistic total: **10–14 evenings** to the end of WP6, which is the version yo
 1. **`users.name` and email for your wife** — the seeds currently fall back to `Partner` / `partner@example.com`. Set `PARTNER_NAME` and `PARTNER_EMAIL` when you seed production, or edit `db/seeds.rb`.
 2. **DNS A record** for `macros.dseifert.net` → das. The one WP2 blocker with lead time.
 3. **The PG 18 cluster's port on das** — falls out of your install; write it here when you know it.
-4. **Re-confirm the Pancakes ruling** (raised 2026-08-21). You ruled EasyFit's "Pancakes Alton Brown" the same dish as `Pancakes.pdf`, but the premise I gave you was wrong: that PDF is not a handwritten card and carries no Alton Brown attribution — it is "A Good Pancake Recipe" from `http://goon/recipes/pancakes.html`, printed 2005. The ruling may still be right; it was made on bad information.
-5. **Sauce Deuxelles is worth a second look.** You raised its density to 130 by judgement, before the actual recipe turned up. `Fondu Sauces.pdf` contains Sauce Duxelles — 2 T butter plus 1 T melted against 3 cups mushrooms and 10.5 oz broth — which costs out near **85–105**, between your original 67 and the 130 you chose.
-6. **"Something else I need to consider"** — you flagged this on 2026-08-21 during the collision walk-through and deferred it. Recorded here so it doesn't evaporate.
 
 ---
 
