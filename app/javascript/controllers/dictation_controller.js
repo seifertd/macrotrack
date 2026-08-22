@@ -16,6 +16,9 @@ import { wavFrom, SAMPLE_RATE } from "lib/wav"
 // What we give up is the live transcript: the words arrive after you finish rather than
 // as you speak. That is the trade for never losing any of them, and it is why the overlay
 // shows the sound of your voice instead — you still need to know it is hearing you.
+//
+// A screen wake lock is held for the duration, because a phone on a worktop with nobody
+// touching it is a phone about to lock, taking the Done button with it.
 export default class extends Controller {
   static targets = [ "form", "audio", "button", "status", "overlay", "state", "level", "clock" ]
 
@@ -62,7 +65,26 @@ export default class extends Controller {
     this.open()
     this.meter()
     this.tick()
+    this.keepAwake()
     this.limit = setTimeout(() => this.finish(), this.constructor.LIMIT_MS)
+  }
+
+  // Design §6 calls screen-lock-mid-utterance the most likely place this behaves worse
+  // than a native app would, and it is right: you are describing a meal with your hands
+  // full and not touching the screen, which is exactly what a phone reads as idle. The
+  // recording survives the screen going dark — MediaRecorder keeps running — but the
+  // overlay, the level ring and the Done button all go with it, and a recording you
+  // cannot stop is not much better than one that stopped by itself.
+  //
+  // Best effort by design. Not every browser has it, it is refused outside a secure
+  // context, and the request can simply fail; none of those are worth telling the user
+  // about, because the recording is fine either way.
+  async keepAwake() {
+    try {
+      this.lock = await navigator.wakeLock?.request("screen")
+    } catch {
+      this.lock = null
+    }
   }
 
   // Done. Stopping the recorder is all this does; its own `stop` event is the one path
@@ -193,6 +215,11 @@ export default class extends Controller {
 
     if (this.stream) this.stream.getTracks().forEach((track) => track.stop())
     this.stream = null
+
+    // Released here rather than in finish(), so cancelling, finishing, the two-minute cap
+    // and navigating away all hand the screen back by the same path.
+    this.lock?.release()
+    this.lock = null
   }
 
   say(message) {
