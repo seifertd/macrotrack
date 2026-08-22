@@ -40,6 +40,40 @@ class Food < ApplicationRecord
 
   scope :named_like, ->(query) { where(name_match_sql("foods.name", query)) }
 
+  # Ranking is a different question from matching, and needs both measures.
+  #
+  # `word_similarity(query, name)` asks whether the query turns up as a run of words
+  # inside the name, which is what recall wants — but every name containing the query
+  # scores 1.00 on it, so on its own it cannot tell "Portobello Sandwich" from "Chicken
+  # soup with portobello mushrooms and teriyaki chicken", and the tie used to be broken
+  # alphabetically, which put the soup first.
+  #
+  # `similarity(query, name)` asks how much of the name *is* the query, which is exactly
+  # that distinction. It goes second rather than into a blended score so it breaks ties
+  # without ever overriding recall: a long name that genuinely contains what you typed
+  # still outranks a short one that only half matches.
+  #
+  # GREATEST across columns because an entry can match on its food's name or on the
+  # transcript it was logged from, and COALESCE because raw_input is often NULL.
+  def self.word_score_sql(query, *columns)
+    score_sql("word_similarity", query, columns)
+  end
+
+  def self.whole_score_sql(query, *columns)
+    score_sql("similarity", query, columns)
+  end
+
+  # Fully sanitised and returned as one fragment with no placeholders left in it. Passing
+  # this to `order(sql, query)` instead would reintroduce the bug fixed in Meals::Matcher
+  # on 2026-08-22: once the text is quoted into the string, a "?" in what the user typed
+  # counts as a bind placeholder and the query raises before it is sent.
+  def self.score_sql(measure, query, columns)
+    terms = columns.map { |column| "#{measure}(:query, #{column})" }.join(", ")
+
+    sanitize_sql_array([ "COALESCE(GREATEST(#{terms}), 0)", query: query ])
+  end
+  private_class_method :score_sql
+
   # The column is a literal from our own code, never user input; the query is bound.
   def self.name_match_sql(column, query)
     sanitize_sql_array([

@@ -207,7 +207,69 @@ class RepeatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, users(:neighbor).meal_entries.count
   end
 
+  # The complaint that prompted this: searching "portobello" put "Chicken soup with
+  # portobello mushrooms and teriyaki chicken" above "Portobello Sandwich", because
+  # word_similarity scores every name containing the query at 1.00 and the tie fell
+  # through to alphabetical order.
+  test "food matches come back best first, not alphabetically" do
+    Food.create!(name: "Portobello Sandwich", calories_per_100g: 156, source: "user_custom")
+    Food.create!(name: "Chicken soup with portobello mushrooms and teriyaki chicken",
+      calories_per_100g: 40, source: "user_custom")
+    Food.create!(name: "Aubergine and portobello bake", calories_per_100g: 90, source: "user_custom")
+
+    get repeats_path(q: "portobello")
+
+    assert_equal "Portobello Sandwich", first_named(/Portobello Sandwich|Chicken soup with portobello|Aubergine and portobello/)
+    assert_match(/3 matches/, response.body, "every match is surfaced, not just the closest")
+  end
+
+  test "a name that is mostly the query beats a long one that merely contains it" do
+    Food.create!(name: "Turkish Meatballs", calories_per_100g: 200, source: "user_custom")
+    Food.create!(name: "15 Swedish meatballs with mashed potatoes, gravy and lingonberry",
+      calories_per_100g: 150, source: "user_custom")
+
+    get repeats_path(q: "meatballs")
+
+    assert_equal "Turkish Meatballs", first_named(/Turkish Meatballs|15 Swedish meatballs/)
+  end
+
+  # Entries were ordered by recency even when the user had typed a name, so the meal they
+  # asked for could sit below one they happened to eat later.
+  test "entry matches are ordered by match, not by when they were eaten" do
+    older = log(@doug, "Portobello Sandwich", consumed_at: 3.days.ago)
+    newer = log(@doug, "Portobello mushroom sandwich on sourdough", consumed_at: 1.hour.ago)
+
+    get repeats_path(q: "portobello sandwich")
+
+    assert_operator response.body.index(repeat_path(older)), :<,
+      response.body.index(repeat_path(newer)), "the one asked for, not the one eaten last"
+  end
+
+  test "browsing with no query is still most recent first" do
+    older = log(@doug, "Older dinner", consumed_at: 3.days.ago)
+    newest = log(@doug, "Tonight's dinner", consumed_at: 1.hour.ago)
+
+    get repeats_path
+
+    assert_operator response.body.index(repeat_path(newest)), :<, response.body.index(repeat_path(older))
+  end
+
+  # A "?" in the query is quoted into the ranking fragment, so it must not also be read
+  # as a bind placeholder — the failure mode fixed in Meals::Matcher on the same day.
+  test "punctuation in the query is text, not SQL" do
+    Food.create!(name: "Portobello Sandwich", calories_per_100g: 156, source: "user_custom")
+
+    get repeats_path(q: "portobello sandwich? 100% ';--")
+
+    assert_response :success
+  end
+
   private
+    # Which of the candidate names the page prints first.
+    def first_named(pattern)
+      response.body.scan(pattern).first
+    end
+
     def magic_juice
       @magic_juice ||= Food.create!(name: "Magic Juice", source: "user_custom",
         calories_per_100g: 71.87, protein_per_100g: 0.4, carbs_per_100g: 17.2,
