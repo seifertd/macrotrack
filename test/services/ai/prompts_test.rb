@@ -69,4 +69,41 @@ class Ai::PromptsTest < ActiveSupport::TestCase
       assert_match(/2:30 AM/, Ai::Prompts.meal_logging(users(:neighbor)).last[:text])
     end
   end
+  # Production, 22 August: an entry was logged by voice, deleted from the day screen, and
+  # the model then refused to log it again because the transcript above still showed
+  # itself logging it. The transcript is a record of what was said, not of what is on the
+  # log now, and only one of those two is a fact.
+  test "the day's log is stated as it stands, not as the conversation remembers it" do
+    travel_to Time.utc(2026, 8, 17, 6, 45) do
+      entry = @user.meal_entries.create!(
+        source: "voice", calories: 40, quantity_grams: 60, consumed_at: 1.hour.ago,
+        food: Food.find_or_create_by_name("Fresh figs (2 small)")
+      )
+
+      assert_match(/##{entry.id} .* Fresh figs \(2 small\) — 40 kcal, 60g/,
+        Ai::Prompts.meal_logging(@user).last[:text])
+
+      entry.destroy!
+
+      volatile = Ai::Prompts.meal_logging(@user).last[:text]
+
+      assert_no_match(/Fresh figs/, volatile)
+      assert_match(/authoritative/, volatile)
+      assert_match(/never refuse to log something on the grounds that you remember/, volatile.squish)
+    end
+  end
+
+  test "an empty day says so rather than heading an empty list" do
+    travel_to Time.utc(2026, 8, 17, 6, 45) do
+      @user.meal_entries.destroy_all
+
+      assert_match(/Nothing is logged for today yet/, Ai::Prompts.meal_logging(@user).last[:text])
+    end
+  end
+
+  test "the day's log sits below the cache breakpoint with the rest of the volatile half" do
+    travel_to Time.utc(2026, 8, 17, 6, 45) do
+      assert_no_match(/Logged today/, Ai::Prompts.meal_logging(@user).first[:text])
+    end
+  end
 end
