@@ -74,11 +74,10 @@ module Meals
       # `where(fragment, threshold)` would be the obvious form and it is a trap: the
       # quoted text is now part of the SQL string, so a "?" anywhere in what the user
       # said — "did I eat pasta?" — counts as a second bind placeholder and the query
-      # raises PreparedStatementInvalid before it is ever sent. The threshold is a float
-      # constant, so it goes in as a literal and the clause carries no placeholders at
-      # all.
+      # raises PreparedStatementInvalid before it is ever sent. Comparing through Arel
+      # asks for no placeholders at all, and quotes the threshold on its own terms.
       def above(score, threshold)
-        Arel.sql("#{score} >= #{threshold.to_f}")
+        Arel.sql(score).gteq(threshold)
       end
 
       def scored_entries(threshold = THRESHOLD)
