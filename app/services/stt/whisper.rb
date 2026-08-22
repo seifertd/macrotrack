@@ -31,9 +31,17 @@ module Stt
       # stdout is the transcript; stderr is only worth reading when it failed.
       #
       # -np no progress, -nt no timestamps, -t threads.
+      #
+      # -bo 1 -bs 1 is greedy decoding instead of the default beam search, and -fa is
+      # flash attention. Together they take a 22-second recording from 11.8s to 7.7s and
+      # return byte-identical transcripts on both fixtures. Greedy is in principle less
+      # robust on hard audio — it cannot back out of a bad guess — so if a recording ever
+      # comes back worse than it sounds, drop these two flags before reaching for a
+      # bigger model or a bigger box.
       stdout, stderr, status = Open3.capture3(
         binary, "-m", model, "-f", path.to_s,
-        "-t", Rails.configuration.x.whisper_threads.to_s, "-np", "-nt"
+        "-t", Rails.configuration.x.whisper_threads.to_s,
+        "-bo", "1", "-bs", "1", "-fa", "-np", "-nt"
       )
 
       raise Error, "whisper failed: #{stderr.lines.last(3).join.strip}" unless status.success?
