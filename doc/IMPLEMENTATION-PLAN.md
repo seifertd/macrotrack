@@ -272,6 +272,8 @@ WP5 gets the same treatment, and its fallback is better than WP7's. §2 records 
 
 **The reconciliation above ran the wrong way, corrected 2026-08-19.** "Reconciled from the macros" was the wrong call: Doug crafted each EasyFit serving to be the portion he actually eats and the calories he believed it cost, so the **stated calories are the anchor and the macros are the softer number** — the reverse of what `EasyfitImport` shipped with. Measured across all 123 rows the two mostly agree (median macro/stated ratio **1.004**, 104 rows within 10%), so this is a tail problem, not a corpus-wide one; Magic Juice just happens to sit in the tail. It is **71.87 kcal/100g**, not 81.13 — the old figure was 12.9% high. The importer now anchors on the stated calories, rescales the P/C/F split in proportion to match, and flags rows past a 10% gap rather than rejecting them, since a disagreement impugns the split and not the calorie figure. **Checked on das after deploying: no EasyFit row has ever been imported to production** — the Magic Juice row is a development one, and all 12 production `foods` rows are chat-created with no nutrition at all. So nothing user-facing was ever wrong, and WP6b's retrieval currently matches names without having macros to offer behind them.
 
+**`Foods::EasyfitImport` was deleted on 2026-08-22.** Everything above is the record of *why* that corpus needed a hand pass before it could be trusted — and the pass happened. The 56 rows it vetted reached production inside `db/seeds/foods.csv` through `Foods::CsvImport`; the class had no second job, and two importers in one namespace is a question every future reader would have had to answer once.
+
 So this package is not only a cost optimisation. Until it lands, imported foods are worse than inert: the app will confidently rename them. Whatever else changes, retrieval has to run *before* the model gets a chance to guess at the name.
 
 1. `Food.match_or_create(name)` using `pg_trgm` similarity, scoped first to the household's last 90 days, then global `foods`. Tune the threshold against real data, not a guess.
@@ -351,7 +353,7 @@ das's `master.key` is byte-identical to the local one, so no re-encryption is in
 
 **This was already written down as WP6b's one open item, assigned to WP4.5.** It is split back out and built first, because the two halves of WP4.5 are independent and that ordering was backwards: extraction first produces ~141 rows with no way to look at a single one of them in the app. Phase 2 is scans of handwritten cards where a misread quantity yields confidently wrong macros — reviewing those needs a screen that exists.
 
-**Nothing new was needed to build it.** WP7 already wrote the object: `FoodPortion` is a portion screen for a food with no entry, and WP7.5 gave it servings. `EasyfitImport` rejects any row without a positive `serving_g`, so all ~123 imports arrive knowing what one serving weighs — the ½ / 1 / 1½ / 2 chips work on every one of them with no extra work. The form itself is now `shared/_portion_form`, rendered by the scanner and the picker alike, because the question they ask is identical and only the way you arrived differs.
+**Nothing new was needed to build it.** WP7 already wrote the object: `FoodPortion` is a portion screen for a food with no entry, and WP7.5 gave it servings. The import path refuses a serving basis with no `serving_g`, so any row that claims a serving arrives knowing what one weighs — the ½ / 1 / 1½ / 2 chips work on those with no extra work. (Written expecting a corpus of ~123 EasyFit rows, every one of which states a serving. What landed is 190 rows of which **56** do; the other 134 are costed per-100g and portion in grams, which the same screen already handles.) The form itself is now `shared/_portion_form`, rendered by the scanner and the picker alike, because the question they ask is identical and only the way you arrived differs.
 
 ### What changed
 
@@ -526,7 +528,6 @@ Of 238 unmatched ingredient lines in the one-off, the large majority were **near
 
 1. **What is the input?** A file is 4.5-a's answer and it is the wrong one here. In practice a new recipe arrives as a URL, a photo of a card, or text pasted from a message. Pick one to build first — the evidence above says the URL case is by far the cleanest, and the photo case is the one already proven to work via vision.
 2. **Where does the review happen?** WP4.4's food screen shows a row and portions it, but nothing shows a *proposed* row with its ingredient breakdown and lets you correct a quantity before it is saved. That screen is most of this package.
-3. **Retire `Foods::EasyfitImport`?** It is superseded — the EasyFit rows reached production inside `db/seeds/foods.csv`, through `Foods::CsvImport`. It plus `db/seeds/easyfit_foods.csv` and its tests are now dead weight, and two importers in one namespace is a question the next reader has to answer. Recommend deleting all three; kept for now because nothing forces the call.
 
 **Done when:** you can point the app at one new recipe, see what it thinks the ingredients and per-100g figures are, correct it, and save it — without touching a spreadsheet.
 
@@ -567,7 +568,7 @@ Design refs: §7 path 2, §14.6. `BarcodeDetector` (native in Chrome on Android,
 
 **`foods` gains `serving_g` and `serving_label`, both nullable.** Grams stay canonical — everything resolves to grams before scaling, and grams are what land on `meal_entries.quantity_grams`. Servings are an *input* unit, offered only when the food knows what one weighs.
 
-**The real reason this is worth a migration is that it makes the per-100g conversion reversible.** Source data that is stated *per serving* — the EasyFit export, essentially every nutrition label — had to be divided by a weight to be stored, and the original figure could not be recovered afterwards. That lossiness is what made the EasyFit trust question feel like a one-way door: choosing which half to believe was irreversible. It isn't any more. `EasyfitImport` now keeps the divisor, and there is a test asserting Doug's own stated 163 kcal comes back out of the stored row.
+**The real reason this is worth a migration is that it makes the per-100g conversion reversible.** Source data that is stated *per serving* — the EasyFit export, essentially every nutrition label — had to be divided by a weight to be stored, and the original figure could not be recovered afterwards. That lossiness is what made the EasyFit trust question feel like a one-way door: choosing which half to believe was irreversible. It isn't any more. `Foods::CsvImport` keeps the divisor, and there is a test asserting Doug's own stated 163 kcal comes back out of the stored row. (That test first landed on `EasyfitImport`, which was deleted 2026-08-22 once its corpus was imported.)
 
 Where servings come from, in order of how much they can be trusted:
 
