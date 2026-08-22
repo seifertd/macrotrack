@@ -14,16 +14,20 @@ module Stt
       raise Error, "whisper binary not found at #{binary}" unless File.executable?(binary)
       raise Error, "whisper model not found at #{model}" unless File.exist?(model)
 
-      # -np no progress, -nt no timestamps, -t threads. The output is the transcript and
-      # nothing else, which is why this can be read straight off stdout.
-      output, status = Open3.capture2e(
+      # capture3, not capture2e, and that distinction is the whole of this method. whisper
+      # narrates itself on stderr — "reading audio data…", "trying to decode with
+      # miniaudio" — so merging the two streams makes its diagnostics part of the meal.
+      # stdout is the transcript; stderr is only worth reading when it failed.
+      #
+      # -np no progress, -nt no timestamps, -t threads.
+      stdout, stderr, status = Open3.capture3(
         binary, "-m", model, "-f", path.to_s,
         "-t", Rails.configuration.x.whisper_threads.to_s, "-np", "-nt"
       )
 
-      raise Error, "whisper failed: #{output.lines.last(3).join.strip}" unless status.success?
+      raise Error, "whisper failed: #{stderr.lines.last(3).join.strip}" unless status.success?
 
-      output.strip.squeeze(" ")
+      stdout.strip.squeeze(" ")
     end
   end
 end
