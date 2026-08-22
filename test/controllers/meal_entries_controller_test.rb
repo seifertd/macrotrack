@@ -113,6 +113,23 @@ class MealEntriesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # An entry logged at 10:29:13 used to render as "10:29:13" in the datetime-local field.
+  # The browser's step of one minute then measured from :13, so a round "10:30" was
+  # rejected as invalid. Mobile date-time pickers offer no seconds control, so no
+  # reachable value satisfied the check and the entry could not be edited from a phone.
+  test "the edit screen offers a whole minute so a round time is accepted" do
+    entry = @user.meal_entries.create!(
+      source: "manual", calories: 100, consumed_at: Time.utc(2026, 8, 17, 15, 29, 13)
+    )
+
+    get edit_meal_entry_path(entry)
+
+    assert_response :success
+    assert_select "input[name=?]", "meal_entry[consumed_at]" do |input|
+      assert_no_match(/:\d\d:\d\d\z/, input.first["value"])
+    end
+  end
+
   test "updating an entry keeps it scoped and redirects to its day" do
     entry = @user.meal_entries.create!(
       source: "manual", calories: 100, consumed_at: Time.utc(2026, 8, 17, 15, 30)
