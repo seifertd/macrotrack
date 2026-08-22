@@ -3,6 +3,11 @@
 class ChatSuggestionsController < ApplicationController
   before_action :set_message
 
+  # Goes into the transcript as the user's own turn. Two things need it: a request whose
+  # last message is an assistant turn is a prefill, which the model rejects outright, and
+  # the model has no other way to learn the offer was turned down.
+  REFUSAL = "No — not that one. Work it out from scratch."
+
   def accept
     source = @message.suggested_meal_entry
     @entry = MealPortion.new(source).log_for!(Current.user, logged_as: "matched")
@@ -16,7 +21,12 @@ class ChatSuggestionsController < ApplicationController
 
   def decline
     answered!
-    AiChatTurnJob.perform_later(@message.conversation)
+    @reply = @message.conversation.messages.create!(
+      role: "user", content: [ { "type" => "text", "text" => REFUSAL } ]
+    )
+    # No retrieval on the way back: the hints block tells the model to prefer a stored
+    # entry over estimating, and the entry it would lead with is the one just refused.
+    AiChatTurnJob.perform_later(@message.conversation, retrieval: false)
 
     respond_to do |format|
       format.turbo_stream

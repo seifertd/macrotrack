@@ -62,11 +62,23 @@ module Meals
     end
 
     private
+      # The text is quoted into the fragment rather than bound, because the same
+      # fragment has to appear in SELECT and ORDER BY as well, and neither takes binds.
       def score_sql(column)
         ActiveRecord::Base.sanitize_sql_array([
           "GREATEST(word_similarity(#{column}, :text), word_similarity(:text, #{column}), similarity(#{column}, :text))",
           text: @text
         ])
+      end
+
+      # `where(fragment, threshold)` would be the obvious form and it is a trap: the
+      # quoted text is now part of the SQL string, so a "?" anywhere in what the user
+      # said — "did I eat pasta?" — counts as a second bind placeholder and the query
+      # raises PreparedStatementInvalid before it is ever sent. The threshold is a float
+      # constant, so it goes in as a literal and the clause carries no placeholders at
+      # all.
+      def above(score, threshold)
+        Arel.sql("#{score} >= #{threshold.to_f}")
       end
 
       def scored_entries(threshold = THRESHOLD)
@@ -75,7 +87,7 @@ module Meals
         MealEntry.joins(:user, :food)
           .where(users: { household_id: @user.household_id })
           .where(consumed_at: WINDOW.ago..)
-          .where("#{score} >= ?", threshold)
+          .where(above(score, threshold))
           .select("meal_entries.*", "#{score} AS match_score")
           .order(Arel.sql("#{score} DESC"), consumed_at: :desc)
           .limit(HINT_LIMIT)
@@ -89,7 +101,7 @@ module Meals
         score = score_sql("foods.name")
 
         Food.where.not(calories_per_100g: nil)
-          .where("#{score} >= ?", threshold)
+          .where(above(score, threshold))
           .select("foods.*", "#{score} AS match_score")
           .order(Arel.sql("#{score} DESC"))
           .limit(HINT_LIMIT)

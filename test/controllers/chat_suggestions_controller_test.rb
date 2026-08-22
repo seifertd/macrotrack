@@ -42,13 +42,53 @@ class ChatSuggestionsControllerTest < ActionDispatch::IntegrationTest
   test "declining hands the turn to the model and logs nothing" do
     suggestion = offer
 
-    assert_enqueued_with job: AiChatTurnJob do
+    assert_enqueued_with job: AiChatTurnJob, args: [ @doug.conversation!, { retrieval: false } ] do
       assert_no_difference -> { @doug.meal_entries.count } do
         post decline_chat_suggestion_path(suggestion), as: :turbo_stream
       end
     end
 
     assert_not suggestion.reload.suggestion?
+  end
+
+  test "declining records the refusal as a turn of its own, and renders it" do
+    suggestion = offer
+
+    post decline_chat_suggestion_path(suggestion), as: :turbo_stream
+
+    reply = @doug.conversation!.messages.last
+
+    assert_equal "user", reply.role
+    assert_equal ChatSuggestionsController::REFUSAL, reply.text
+    assert_nil reply.input_source, "nobody typed it — it must not become an entry's raw_input"
+    assert_match(/turbo-stream action="append" target="messages"/, response.body)
+    assert_match ChatSuggestionsController::REFUSAL, response.body
+  end
+
+  test "the request that follows a decline is a legal one, and actually gets answered" do
+    say "a single burst cherry tomato pasta"
+    suggestion = offer
+
+    post decline_chat_suggestion_path(suggestion), as: :turbo_stream
+    client = with_fake_client(Ai::FakeClient.text("Roughly 180 kcal for one.")) { perform_enqueued_jobs }
+
+    # The bug this pins: the transcript ended on the offer, so the request was a prefill —
+    # a 400 on every current model — and the matcher choked on the "?" in "Same again?"
+    # before it even got that far. Either way the user pressed the button and nothing came.
+    assert_equal "user", client.last_request[:messages].last[:role]
+    assert_equal "Roughly 180 kcal for one.", @doug.conversation!.messages.last.text
+  end
+
+  test "the turn after a decline is not handed the hints it just refused" do
+    say "a single burst cherry tomato pasta"
+
+    post decline_chat_suggestion_path(offer), as: :turbo_stream
+    client = with_fake_client(Ai::FakeClient.text("ok")) { perform_enqueued_jobs }
+
+    volatile = client.last_request[:system_].last[:text]
+
+    assert_no_match(/Burst Cherry Tomato Pasta/, volatile,
+      "the hints block tells the model to prefer a stored entry over estimating")
   end
 
   test "a suggestion cannot be answered twice" do
@@ -85,6 +125,13 @@ class ChatSuggestionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+    def say(text)
+      @doug.conversation!.messages.create!(
+        role: "user", input_source: "text",
+        content: [ { "type" => "text", "text" => text } ]
+      )
+    end
+
     def offer
       @doug.conversation!.messages.create!(
         role: "assistant", suggested_meal_entry: @source,

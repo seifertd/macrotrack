@@ -35,6 +35,12 @@ class Message < ApplicationRecord
     text.present?
   end
 
+  # A user row that came from the person at the keyboard. The other two kinds of user
+  # row — tool results, and the answer to a suggestion — are the API's bookkeeping.
+  def spoken?
+    role == "user" && input_source.present? && text?
+  end
+
   def tool_results
     blocks_of_type("tool_result").map do |block|
       { payload: parse_payload(block["content"]), error: block["is_error"] == true }

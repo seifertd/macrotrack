@@ -33,6 +33,19 @@ class Meals::MatcherTest < ActiveSupport::TestCase
     assert_nil Meals::Matcher.new(@doug, "burst cherry tomato pasta").best_entry
   end
 
+  test "punctuation in what was said is text, not SQL" do
+    entry = log(@partner, "Burst Cherry Tomato Pasta")
+
+    # A "?" in the text used to land in the SQL fragment and be counted as a bind
+    # placeholder, so every question raised PreparedStatementInvalid before the query
+    # was sent — which took the whole chat send down with it.
+    [ "did I eat the burst cherry tomato pasta?", "burst cherry tomato pasta :name ?? ok" ].each do |text|
+      assert_equal entry, Meals::Matcher.new(@doug, text).best_entry&.entry, text
+    end
+
+    assert_nothing_raised { Meals::Matcher.new(@doug, "what's for dinner? 100%_ '; --").hints }
+  end
+
   test "unrelated food matches nothing" do
     log(@partner, "Burst Cherry Tomato Pasta")
 
