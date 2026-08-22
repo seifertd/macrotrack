@@ -583,7 +583,7 @@ Two things that only showed up in real use:
 
 Design refs: §7 path 2, §14.6. `BarcodeDetector` (native in Chrome on Android, on-device, free) → OpenFoodFacts lookup → `foods` row with `source: "openfoodfacts"`. Ground truth, no inference. Include a manual-entry fallback for the products OpenFoodFacts doesn't have — it'll be more of them than you expect.
 
-**`BarcodeDetector` is Chrome-on-Android only** — it does not exist in Safari. Both phones in this household are Android (confirmed 2026-08-17), so **no JS fallback is needed**. Worth remembering only if the app ever reaches an iPhone, where the scan button would otherwise fail silently.
+**`BarcodeDetector` is Chrome-on-Android only** — it does not exist in Safari. Both phones in this household are Android (Pixel 7a; confirmed 2026-08-17, re-confirmed 2026-08-22), so **no JS fallback is needed**. Worth remembering only if the app ever reaches an iPhone, where the scan button would otherwise fail silently.
 
 ---
 
@@ -639,7 +639,7 @@ So: **5-a ships now, 5-b waits for evidence from 5-a.** This is the same bar WP1
 
 Small, because WP4 already built everything downstream of a transcript and left it unused: `Message::INPUT_SOURCES` is already `%w[ text voice ]`, `MealEntry::SOURCES` already contains `voice`, `Ai::ToolHandlers` already stamps entries from `conversation.last_input_source`, and `Ai::Prompts::INSTRUCTIONS` already opens by telling the model to expect a transcript with filler and self-correction. What is missing is the thing that produces the transcript.
 
-1. **Spike it first — this one is genuinely blocking.** `webkitSpeechRecognition` has been in Safari for years, but inside an **iOS home-screen PWA in standalone mode** it has a history of misbehaving: no permission prompt, `not-allowed`, or working from a Safari tab and not from the icon. That is exactly how this app is used, so it decides the package. A throwaway page with one button that starts recognition and dumps what it hears, opened **from the MacroTrack icon**, on both phones. If it fails, stop: the fallback is not the keyboard mic, it is `MediaRecorder` plus a server, which is 5-b.
+1. **Both phones are Chrome on Android** — Pixel 7a, confirmed 2026-08-22, same fact WP7 leans on for `BarcodeDetector`. That is the platform where `webkitSpeechRecognition` is best supported, including from an installed PWA, so this package is not the coin-flip an earlier draft of this line claimed: it was written on the mistaken belief that one of the phones was an iPhone, which is where standalone-PWA recognition genuinely does misbehave. **Confirm it from the home-screen icon anyway** — the first tap is the spike, because every failure path below says out loud what went wrong instead of doing nothing. Worth remembering only if the app ever reaches an iPhone, where this button would need re-testing before it could be trusted.
 2. **One `dictation` Stimulus controller**, mounted twice. Click starts recognition; interim results stream into a text field so you can watch it hear you; end-of-speech submits the form. The click has to be the gesture the browser sees, which is why each button listens *where it was tapped* rather than navigating to the chat screen and starting there.
 3. **Mount one: the chat composer.** A mic beside Send, for when you are already in the conversation.
 4. **Mount two: the Add screen**, as the first path, above "Log by chat" — it wraps a hidden form posting to the existing `chat_messages_path`. One tap from Add to a submitted meal, and no new endpoint exists.

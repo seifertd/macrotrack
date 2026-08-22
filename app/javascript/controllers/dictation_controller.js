@@ -2,11 +2,12 @@ import { Controller } from "@hotwired/stimulus"
 
 // Tap, ramble, done (WP5-a).
 //
-// The recogniser is the phone's own, reached through `webkitSpeechRecognition`. That is
-// the entire package: no endpoint, no provider, no blob, and no audio going anywhere the
-// keyboard's mic key wasn't already sending it. WP5-b is where a hosted recogniser with
-// vocabulary biasing would go, and it stays unbuilt until this one is measured and found
-// wanting.
+// The recogniser is the browser's own, reached through `webkitSpeechRecognition`. That is
+// the entire package: no endpoint, no provider, no blob, and nothing of ours to keep
+// running. Chrome does the recognising on Google's servers rather than on the handset —
+// worth knowing, and a smaller step than it sounds next to sending the same sentence to
+// Anthropic a moment later. WP5-b is where a hosted recogniser with vocabulary biasing
+// would go, and it stays unbuilt until this one is measured and found wanting.
 //
 // Failure ends where WP7's does — in the composer you were going to type into anyway.
 // Unlike the barcode screen there is nothing to explain when the browser can't do it: a
