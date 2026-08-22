@@ -104,6 +104,10 @@ jobs:
           # REDIS_URL: redis://localhost:6379/0
         run: bin/rails db:test:prepare test
 
+      # node --test, no dependency to install: the runner is in the runner's own node.
+      - name: Run JavaScript tests
+        run: bin/rails test:js
+
   # No system-test job: this app has no test/system directory, and bin/ci leaves the
   # system-test step commented out for the same reason. Restore the generated job from
   # git history when there are browser tests worth running.
