@@ -11,7 +11,8 @@ class AiChatTurnJob < ApplicationJob
   # retry would replay a whole turn's worth of tokens to recover a failure the user
   # can fix by pressing send again.
 
-  def perform(conversation)
+  # retrieval: false comes from a declined suggestion — see ChatSuggestionsController.
+  def perform(conversation, retrieval: true)
     user = conversation.user
     client = Ai.client
 
@@ -25,7 +26,7 @@ class AiChatTurnJob < ApplicationJob
     # Retrieval runs before the first request, not between iterations: the hints describe
     # what the user said at the top of the turn, and re-deriving them mid-turn would let
     # a meal this turn just logged come back as a suggestion to log it again.
-    hints = Meals::Matcher.new(user, conversation.last_user_text).hints
+    hints = retrieval ? Meals::Matcher.new(user, conversation.last_user_text).hints : []
     system_prompt = Ai::Prompts.meal_logging(user, hints: hints)
 
     MAX_ITERATIONS.times do

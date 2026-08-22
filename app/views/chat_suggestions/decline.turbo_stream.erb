@@ -1,5 +1,10 @@
 <%= turbo_stream.remove dom_id(@message, :actions) %>
 
+<%# The answer is a turn like any other, so it renders like one. %>
+<%= turbo_stream.append "messages" do %>
+  <%= render "messages/message", message: @reply, user: Current.user %>
+<% end %>
+
 <%= turbo_stream.replace "typing_indicator" do %>
   <%= render "chats/typing_indicator", visible: true %>
 <% end %>

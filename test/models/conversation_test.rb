@@ -44,6 +44,17 @@ class ConversationTest < ActiveSupport::TestCase
     assert_equal "two eggs and toast", @conversation.last_user_text
   end
 
+  test "last_user_text is what the user said, not what was offered back to them" do
+    say "a single chicken taquito"
+    assistant [ { "type" => "text", "text" => "You had them on 21 August — 645 kcal. Same again?" } ]
+    # How a declined suggestion is recorded: a user turn nobody typed.
+    @conversation.messages.create!(
+      role: "user", content: [ { "type" => "text", "text" => "No — not that one." } ]
+    )
+
+    assert_equal "a single chicken taquito", @conversation.last_user_text
+  end
+
   test "last_input_source defaults to text and survives tool result turns" do
     assert_equal "text", @conversation.last_input_source
 

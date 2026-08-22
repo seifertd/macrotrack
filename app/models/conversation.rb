@@ -13,9 +13,14 @@ class Conversation < ApplicationRecord
   end
 
   # The transcript behind the most recent request, stored on entries as raw_input so
-  # a bad estimate can be read back against what was actually said.
+  # a bad estimate can be read back against what was actually said. Only turns the user
+  # actually typed or dictated count: tool results are stored as user rows, and so is
+  # the answer to a suggestion, but nobody said either of them. Dropping the role check
+  # entirely — which this did — also let an assistant turn answer for the user, and the
+  # one place that happens is a declined suggestion, whose text then came back as the
+  # thing to be estimated.
   def last_user_text
-    messages.reverse_each.find(&:text?)&.text if messages.any?
+    messages.reverse_each.find(&:spoken?)&.text
   end
 
   def last_input_source
