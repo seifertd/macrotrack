@@ -17,14 +17,10 @@ import Transcript from "lib/transcript"
 export default class extends Controller {
   static targets = ["field", "source", "button", "status"]
 
-  // How long a pause means "finished" rather than "thinking". Long enough to say
-  // "…and, uh…" in the middle of a sentence without being cut off, short enough that
-  // you aren't left wondering whether it heard you.
+  // A backstop, not the main way a recording ends. Android decides that itself, at the
+  // first real pause; this only matters if it never says so, or if a button pressed by a
+  // pocket is left listening to a quiet room.
   static SILENCE_MS = 2500
-
-  // Describing a meal does not take a minute, and a recogniser started by a pocket
-  // should stop on its own rather than hold the mic open until the tab closes.
-  static LIMIT_MS = 60000
 
   connect() {
     this.Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -53,11 +49,12 @@ export default class extends Controller {
     this.transcript = new Transcript()
     this.problem = null
     this.listening = true
-    this.deadline = Date.now() + this.constructor.LIMIT_MS
 
     this.recognition = new this.Recognition()
     this.recognition.lang = document.documentElement.lang || "en-US"
-    this.recognition.continuous = true
+    // Explicitly off, because Android ignores it being on and the pretence cost us: see
+    // `ended` below for what asking for continuous recognition actually bought.
+    this.recognition.continuous = false
     this.recognition.interimResults = true
     this.recognition.onresult = (event) => this.heard(event)
     this.recognition.onerror = (event) => this.failed(event)
@@ -72,7 +69,7 @@ export default class extends Controller {
 
     this.fieldTarget.value = ""
     this.buttonTarget.classList.add("animate-pulse", "ring-2", "ring-rose-400")
-    this.say("Listening… tap again when you're done.")
+    this.say("Listening… say it in one go — a pause ends it.")
     this.waitForSilence()
   }
 
@@ -81,21 +78,20 @@ export default class extends Controller {
     this.waitForSilence()
   }
 
-  // Safari ends a session at the first pause whatever `continuous` claims, and Chrome
-  // will too if the pause is long enough. Restarting keeps the sentence going, so it is
-  // the silence timer below — not the browser's idea of a sentence — that decides when
-  // you have finished talking.
+  // One tap is one utterance, and that is a concession rather than a design.
+  //
+  // This used to restart the recogniser whenever a session ended, so that a pause
+  // mid-sentence would not end the recording. It does not work. Android ends the session
+  // at every pause whatever `continuous` says, plays its own chime on each new one, and
+  // loses whatever is said in the gap between the two — so a rambling sentence came back
+  // beeping at the user with words missing from the middle. Design §6 called this
+  // exactly, under the heading "Don't use the Web Speech API", and building around it
+  // rather than reading it is how we got here.
+  //
+  // So the recording now ends when Android says it ended. Short sentences — which is
+  // nearly all of them — are unaffected, and rambling is what WP5-b is for.
   ended() {
     this.transcript.close()
-
-    if (this.listening && Date.now() < this.deadline) {
-      try {
-        return this.recognition.start()
-      } catch {
-        // Fall through and send what we have.
-      }
-    }
-
     this.send()
   }
 
