@@ -473,7 +473,7 @@ Worth knowing before trusting any embedded nutrition table: **Doug's own Chicken
 
 `rake 'foods:import[db/seeds/foods.csv]'` on das, 2026-08-21: **190 created, 0 updated.** Zero name collisions with the 29 rows already there, 26 of which are chat-created names carrying no nutrition at all. Production now holds **219 foods, 193 loggable, 59 with a serving chip**.
 
-### Three rows were corrected after they were already live (2026-08-22)
+### Seven rows were corrected after they were already live (2026-08-22)
 
 Not a footnote — this is the strongest evidence 4.5-b has, so read it as a finding rather than a changelog.
 
@@ -481,6 +481,15 @@ Not a footnote — this is the strongest evidence 4.5-b has, so read it as a fin
 |---|---|---|---|
 | `Pancakes Alton Brown` | 28.4 g · 43 kcal · 151/100g | **`Pancakes`**, 36 g · 61 kcal · **170**/100g | Doug recalling the recipe he *currently* cooks |
 | `Sauce Deuxelles` | 130/100g, macros rescaled from EasyFit | **95.5**/100g, macros re-derived from the recipe | the actual recipe surfacing in `Fondu Sauces.pdf` |
+| `Scone` | 113 g · 44/100g | 13 g · **385**/100g — a mini scone | naming the portion |
+| `English Muffin` | 113 g · 70 kcal · 62/100g | 57 g · 140 kcal · **246**/100g | figures matched *half* a muffin |
+| `Egg Noodles` | 340 g · 59/100g | 150 g cooked · **133**/100g | figures were the **dry** panel |
+| `Steel Cut Oats Cooked` | 113 g · 132/100g | 160 g cooked · **94**/100g | figures were the **dry** panel |
+| `Lebkuchen` | 57 g · 194/100g | 30 g · **367**/100g | naming the portion |
+
+**Renaming the serving labels is what found the last five.** The 38 ounce labels were cosmetic — the form rendered `1 serving = 227g (8 oz)`, a parenthetical that only restated the weight. Replacing each with a portion name ("1 slice", "1 large bowl", "2 slices") forced a claim about what the portion *is*, and five rows did not survive the claim. **A label that names something is checkable in a way a unit conversion never is**, which is an argument for requiring one rather than treating it as decoration.
+
+In all five the calories and macros were internally consistent and correct; only the gram weight was wrong. That is the EasyFit dropdown-default finding holding at a sixth point of evidence.
 
 The pancake row is the instructive one. Its name attributed the recipe to Alton Brown; nothing in either corpus does. The file it matched — "A Good Pancake Recipe", a 2005 web print-out, not the handwritten card I claimed it was — agrees with Doug's own figure on density within 5%, the closest agreement of any overlapping pair in the corpus. **And it was still wrong**, because he has since swapped 1¼ c flour for ¾ c flour plus ½ c almond flour, and gets 18 pancakes out of the batter rather than 12–14. Neither corpus knew that. No amount of better parsing would have found it.
 
@@ -514,6 +523,7 @@ The pancake row is the instructive one. Its name attributed the recipe to Alton 
 | Discarded ingredients | Shrimp Cocktail's brine, Norinj Pilau's three changes of boiling water. Costing them is pure invention. |
 | Method steps and nutrition panels leaking into the ingredient block | Filtering lifted the match rate 83% → 92%. Panels are the dangerous half: numbers beside the word "protein" match and inject calories. |
 | The source states its own nutrition | Banana-Rum Souffle gives "Calories 231" per serving. Skip costing entirely. |
+| **A nutrition panel states *dry* weight while the eater logs it cooked** | Found 2026-08-22, and it had gone to production undetected. Egg Noodles carried the 2 oz-dry panel against a 340 g cooked serving (59 kcal/100g, should be 133); Steel Cut Oats carried the ¼ cup-dry panel against 113 g (132, should be 94). Note it lands in **both directions** depending on whether the guessed weight beats the true cooked one, so a plausibility band never catches it. Pasta, rice, grains, pulses and oats all state dry. |
 | The source states a serving *weight* | "10 lava cakes (4 oz servings)" — rarer and better than a yield count. |
 | Retention + the ratio formula | See 4.5-a. This is what makes a yield-less recipe costable. |
 | The 15–900 plausibility band | It is the only thing that caught the corrupt Berry Bundt Cake, at 909. |
