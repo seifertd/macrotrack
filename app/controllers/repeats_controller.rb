@@ -17,8 +17,10 @@ class RepeatsController < ApplicationController
     @user = Current.user
     @query = params[:q].to_s.strip
     @entries = MealEntry.distinct_by_food(matching_entries)
-    @entries = MealEntry.by_confidence(@entries) if @query.present?
     @foods = matching_foods
+    # One ranked list when something was typed; the plain recent-meals picker otherwise,
+    # where there is no query to be more or less confident about.
+    @results = @query.present? ? ScoredByName.by_confidence(@entries + @foods.to_a) : @entries
     @header_date = @user.local_today
   end
 
@@ -60,17 +62,15 @@ class RepeatsController < ApplicationController
     # eaten — recency needs something to be recent — and WP4.5's ~141 recipes would bury
     # the handful of meals that are actually worth one tap.
     #
-    # Entries still sit above foods rather than being interleaved by score, and that is a
-    # judgement about usefulness rather than about matching: an entry carries a portion
-    # somebody really ate, which beats a serving size even when it matches slightly worse.
-    # Within each list, best match first.
-    #
-    # An entry already on screen wins its food's slot: it carries a portion somebody
-    # really ate, which beats a serving size every time.
+    # An entry already on screen still wins its food's slot: it carries a portion somebody
+    # really ate, which beats a serving size every time. That is the one place the two
+    # kinds are ranked against each other rather than by score, and it is a judgement
+    # about usefulness — but it removes a row rather than reordering one, so the list the
+    # user reads is still strictly best-match-first.
     def matching_foods
       return Food.none if @query.blank?
 
-      Food.loggable.named_like(@query)
+      Food.loggable.named_like(@query).scored_against(@query)
         .where.not(id: @entries.filter_map(&:food_id))
         .order(
           Arel.sql("#{Food.word_score_sql(@query, 'foods.name')} DESC"),

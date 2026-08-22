@@ -1,0 +1,39 @@
+<%# One row of the ranked list, whichever kind it is. The two are still rendered
+    differently — an entry knows who ate it, when, and the portion they had; a food knows
+    a serving size and a per-100g figure — but they sit in one list ordered by how well
+    they matched, with a chip saying which is which. %>
+<% label, chip_classes = result_chip(result) %>
+<% entry = result.is_a?(MealEntry) %>
+<li>
+  <%= link_to(entry ? repeat_path(result) : food_path(result, q: query),
+        class: "flex items-baseline justify-between gap-3 px-4 py-3 hover:bg-slate-50") do %>
+    <div class="min-w-0">
+      <p class="truncate font-medium"><%= result.display_name %></p>
+      <p class="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+        <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide <%= chip_classes %>">
+          <%= label %>
+        </span>
+        <% if entry %>
+          <span class="truncate">
+            <%= result.user == user ? "You" : result.user.name %>
+            · <%= result.consumed_at.in_time_zone(user.timezone).to_date.then { |d| d == user.local_today ? "today" : d.strftime("%-d %b") } %>
+            <% if result.quantity_grams.present? %>· <%= grams(result.quantity_grams) %><% end %>
+          </span>
+        <% else %>
+          <span class="truncate">
+            <%= food_provenance(result) %>
+            <% if result.serving_g.present? %>· 1 serving = <%= grams(result.serving_g) %><% end %>
+          </span>
+        <% end %>
+      </p>
+    </div>
+    <p class="shrink-0 text-right">
+      <% if entry %>
+        <span class="font-semibold tabular-nums"><%= calories(result.calories) %></span>
+      <% else %>
+        <span class="font-semibold tabular-nums"><%= calories(result.calories_per_100g) %></span>
+        <span class="block text-xs text-slate-500">per 100g</span>
+      <% end %>
+    </p>
+  <% end %>
+</li>

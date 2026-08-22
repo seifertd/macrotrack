@@ -264,6 +264,42 @@ class RepeatsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  # The complaint that produced the interleaving: searching "porto" *did* find the
+  # imported Portobello Sandwich recipe, but it rendered under a second heading below a
+  # chicken soup entry, so it looked like a miss. One list, best first, kind on the row.
+  test "a recipe outranks a worse-matching meal that was actually eaten" do
+    log(@doug, "Chicken soup with portobello mushrooms", consumed_at: 1.hour.ago)
+    Food.create!(name: "Portobello Sandwich", calories_per_100g: 156, source: "recipe")
+
+    get repeats_path(q: "porto")
+
+    body = response.body
+    assert_operator body.index("Portobello Sandwich"), :<, body.index("Chicken soup with portobello"),
+      "the closer match comes first whichever kind of row it is"
+    assert_match(/2 matches/, body)
+  end
+
+  test "each row says which kind it is" do
+    log(@doug, "Chicken soup with portobello mushrooms", consumed_at: 1.hour.ago)
+    Food.create!(name: "Portobello Sandwich", calories_per_100g: 156, source: "recipe")
+
+    get repeats_path(q: "porto")
+
+    assert_select "li", text: /recipe/i
+    assert_select "li", text: /eaten/i
+  end
+
+  # 190 of 224 foods were imported from the household's recipes and every one of them
+  # said "entered by hand", which was true of none.
+  test "an imported recipe does not claim somebody typed it" do
+    Food.create!(name: "Portobello Sandwich", calories_per_100g: 156, source: "recipe")
+
+    get repeats_path(q: "portobello")
+
+    assert_match(/from your recipes/, response.body)
+    assert_no_match(/entered by hand/, response.body)
+  end
+
   private
     # Which of the candidate names the page prints first.
     def first_named(pattern)

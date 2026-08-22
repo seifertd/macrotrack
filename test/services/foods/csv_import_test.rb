@@ -23,7 +23,7 @@ class Foods::CsvImportTest < ActiveSupport::TestCase
     assert_equal 114.9, food.calories_per_100g.to_f
     assert_equal 8.2, food.protein_per_100g.to_f
     assert_nil food.serving_g
-    assert_equal "user_custom", food.source
+    assert_equal "recipe", food.source, "an imported recipe is not something anybody entered by hand"
   end
 
   test "a per-serving row is converted to per-100g and keeps its serving" do

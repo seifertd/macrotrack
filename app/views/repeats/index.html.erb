@@ -27,63 +27,24 @@
 
 <% if @query.present? %>
   <p class="mt-3 text-sm text-slate-500">
-    <%= pluralize(@entries.size + @foods.size, "match") %> for “<%= @query %>”.
+    <%= pluralize(@results.size, "match") %> for “<%= @query %>”.
     <%= link_to "Clear", repeats_path, class: "underline hover:no-underline" %>
   </p>
 <% end %>
 
-<% if @entries.any? %>
+<% if @results.any? %>
   <% if @query.present? %>
-    <h2 class="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">You've eaten these</h2>
+    <h2 class="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Best match first</h2>
   <% end %>
   <%# Full class names, not an interpolated suffix — Tailwind scans this file for the
       literal string and cannot see one that is assembled at render time. %>
   <ul class="<%= @query.present? ? "mt-2" : "mt-4" %> divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
-    <% @entries.each do |entry| %>
-      <li>
-        <%= link_to repeat_path(entry), class: "flex items-baseline justify-between gap-3 px-4 py-3 hover:bg-slate-50" do %>
-          <div class="min-w-0">
-            <p class="truncate font-medium"><%= entry.display_name %></p>
-            <p class="mt-0.5 text-xs text-slate-500">
-              <%= entry.user == @user ? "You" : entry.user.name %>
-              · <%= entry.consumed_at.in_time_zone(@user.timezone).to_date.then { |d| d == @user.local_today ? "today" : d.strftime("%-d %b") } %>
-              <% if entry.quantity_grams.present? %>· <%= grams(entry.quantity_grams) %><% end %>
-            </p>
-          </div>
-          <p class="shrink-0 font-semibold tabular-nums"><%= calories(entry.calories) %></p>
-        <% end %>
-      </li>
-    <% end %>
+    <%= render partial: "repeats/result", collection: @results, as: :result,
+          locals: { user: @user, query: @query } %>
   </ul>
 <% end %>
 
-<%# Only ever shown for a search — see RepeatsController#matching_foods for why. The
-    heading says plainly that nobody has eaten these, because the portion offered is a
-    serving size off a label or a recipe rather than a plate someone really ate. %>
-<% if @foods.any? %>
-  <h2 class="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">On file, never logged</h2>
-  <ul class="mt-2 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
-    <% @foods.each do |food| %>
-      <li>
-        <%= link_to food_path(food, q: @query), class: "flex items-baseline justify-between gap-3 px-4 py-3 hover:bg-slate-50" do %>
-          <div class="min-w-0">
-            <p class="truncate font-medium"><%= food.name %></p>
-            <p class="mt-0.5 text-xs text-slate-500">
-              <%= food_provenance(food) %>
-              <% if food.serving_g.present? %>· 1 serving = <%= grams(food.serving_g) %><% end %>
-            </p>
-          </div>
-          <p class="shrink-0 text-right">
-            <span class="font-semibold tabular-nums"><%= calories(food.calories_per_100g) %></span>
-            <span class="block text-xs text-slate-500">per 100g</span>
-          </p>
-        <% end %>
-      </li>
-    <% end %>
-  </ul>
-<% end %>
-
-<% if @entries.none? && @foods.none? %>
+<% if @results.none? %>
   <div class="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
     <% if @query.present? %>
       <p>Nothing on file matches “<%= @query %>”.</p>
