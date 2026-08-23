@@ -55,6 +55,32 @@ class ConversationTest < ActiveSupport::TestCase
     assert_equal "a single chicken taquito", @conversation.last_user_text
   end
 
+  test "the lookbacks read the newest rows, and only a bounded number of them" do
+    # The regression this guards: `messages.reverse_each` loaded the whole thread, and the
+    # obvious bounded rewrite — `order` rather than `reorder` — appends to the association's
+    # chronological default, leaving ASC in charge and answering with the *oldest* turn.
+    say "the first thing I ever said"
+    30.times { |n| assistant [ { "type" => "text", "text" => "reply #{n}" } ] }
+    say "two eggs and toast", input_source: "voice"
+    tool_results "toolu_1"
+
+    assert_equal "two eggs and toast", @conversation.last_user_text
+    assert_equal "voice", @conversation.last_input_source
+
+    # Counted off a fresh load: on the association this test already populated, the old
+    # implementation issued no query at all and any query-based assertion passes vacuously.
+    fresh = Conversation.find(@conversation.id)
+    instantiated = 0
+    counter = ->(*, payload) { instantiated += payload[:record_count].to_i }
+
+    ActiveSupport::Notifications.subscribed(counter, "instantiation.active_record") do
+      fresh.last_user_text
+    end
+
+    assert_operator instantiated, :<=, Conversation::WINDOW,
+      "the whole thread is being instantiated to read the last spoken turn"
+  end
+
   test "a turn in flight is one the user has spoken for and the model has not answered" do
     assert_not @conversation.awaiting_reply?, "an empty thread is not waiting on anything"
 
