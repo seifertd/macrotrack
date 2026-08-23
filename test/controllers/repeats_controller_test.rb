@@ -179,6 +179,33 @@ class RepeatsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name=multiplier]", count: 1
   end
 
+  # The repeat screen renders shared/_portion_form, the same partial the scanner and the
+  # food picker use. What made that possible is MealPortion answering chips/reference_grams
+  # /reference_scaled like FoodPortion does, so this pins the multipliers the chips carry.
+  test "the portion screen offers a share of the plate whether or not it was weighed" do
+    [ 360, nil ].each do |quantity_grams|
+      source = log(@partner, "their dinner", quantity_grams: quantity_grams, calories: 500)
+
+      get repeat_path(source)
+
+      assert_response :success
+      MealPortion::MULTIPLIERS.each do |multiplier|
+        assert_select "button[data-portion-target=chip][data-multiplier=?]", multiplier.to_s
+      end
+      assert_select "button[data-portion-target=chip]", count: MealPortion::MULTIPLIERS.length
+    end
+  end
+
+  # Servings are a `foods` idea. Borrowing the food partial must not start claiming a
+  # plate someone ate has one.
+  test "the portion screen never claims a serving size for an entry" do
+    source = log(@partner, "their dinner", quantity_grams: 360, calories: 559)
+
+    get repeat_path(source)
+
+    assert_select "p", text: /1 serving =/, count: 0
+  end
+
   test "logging a half portion writes a scaled copy onto my day" do
     source = log(@partner, "their dinner", quantity_grams: 360, calories: 559, protein_g: 30)
 

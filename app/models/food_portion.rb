@@ -15,6 +15,8 @@
 # view hands it `reference_grams` and the figures at that reference, and its
 # typed-grams ÷ reference factor is the same one computed here.
 class FoodPortion
+  include Portion
+
   # What per-100g means, and the fallback reference when a serving weight is unknown.
   PER = 100
 
@@ -109,10 +111,6 @@ class FoodPortion
     )
   end
 
-  def log_for!(user, logged_as: "barcode")
-    user.meal_entries.create!(attributes_for(user, logged_as: logged_as).except(:user))
-  end
-
   # What was eaten, in the unit it was said in — "1½ servings" reads better than "172g"
   # when a serving is the thing that was chosen.
   def label
@@ -123,12 +121,7 @@ class FoodPortion
 
   private
     def scale(weight)
-      ratio = weight / PER
-
-      SCALED.transform_values do |per_100g|
-        value = food.public_send(per_100g)
-        value.nil? ? nil : value * ratio
-      end
+      scale_from(food, weight / PER, SCALED)
     end
 
     def serving_label(count)
@@ -136,13 +129,5 @@ class FoodPortion
       unit = count <= 1 ? "serving" : "servings"
 
       "#{FRACTIONS[count] || format('%g', count)} #{unit}"
-    end
-
-    def decimal(value)
-      return nil if value.blank?
-
-      BigDecimal(value.to_s)
-    rescue ArgumentError
-      nil
     end
 end

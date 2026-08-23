@@ -40,8 +40,7 @@ class RepeatsController < ApplicationController
     portion = MealPortion.new(@source, grams: params[:grams], multiplier: params[:multiplier])
     entry = portion.log_for!(Current.user)
 
-    redirect_to day_path(Current.user.local_date(entry.consumed_at)),
-      notice: "Logged #{helpers.calories(entry.calories)} kcal."
+    redirect_to_logged_day(entry)
   end
 
   private
