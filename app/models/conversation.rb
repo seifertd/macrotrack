@@ -19,7 +19,7 @@ class Conversation < ApplicationRecord
   # one place that happens is a declined suggestion, whose text then came back as the
   # thing to be estimated.
   def last_user_text
-    messages.reverse_each.find(&:spoken?)&.text
+    recent_first.find(&:spoken?)&.text
   end
 
   # Whether a turn is in flight. The screen learns this from a broadcast while it is
@@ -34,11 +34,24 @@ class Conversation < ApplicationRecord
   end
 
   def last_input_source
-    messages.reverse_each.find { |message| message.role == "user" && message.input_source.present? }
+    recent_first.find { |message| message.role == "user" && message.input_source.present? }
       &.input_source || "text"
   end
 
   private
+    # Newest first, bounded. `messages.reverse_each` — which both callers above used to
+    # do — is not a relation method, so it fell through to Enumerable and loaded the whole
+    # thread to look at the last row or two; ChatsController already notes this is "a few
+    # thousand rows after a year", and `last_user_text` runs on every chat turn.
+    #
+    # `reorder`, not `order`: the association carries a `chronological` default, and
+    # appending would leave ASC winning and hand back the oldest rows instead of the
+    # newest. WINDOW is the same bound the request itself uses — a spoken turn older than
+    # the context being sent is not the transcript this turn is about anyway.
+    def recent_first
+      messages.reorder(created_at: :desc, id: :desc).limit(WINDOW)
+    end
+
     # Cutting the window mid-turn is the one way to build a request the API rejects:
     # a tool_result whose tool_use fell off the front is a 400, not a degraded reply.
     # So the window is trimmed forward to a plain user turn — the only place a
