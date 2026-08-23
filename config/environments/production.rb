@@ -57,8 +57,12 @@ Rails.application.configure do
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.
   # config.action_mailer.raise_delivery_errors = false
 
-  # Set host to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "example.com" }
+  # Set host to be used by links generated in mailer templates. This is the real vhost
+  # (config/deploy/nginx/macros.dseifert.net.conf), not the generator's placeholder: a
+  # password reset mails a live 15-minute token embedded in this URL, so a host we do not
+  # control is a credential handed to someone else. https because force_ssl is on and a
+  # mailer has no request to infer the scheme from.
+  config.action_mailer.default_url_options = { host: "macros.dseifert.net", protocol: "https" }
 
   # Specify outgoing SMTP server. Remember to add smtp/* credentials via bin/rails credentials:edit.
   # config.action_mailer.smtp_settings = {
