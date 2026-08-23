@@ -41,12 +41,27 @@ class PasswordsControllerTest < ActionDispatch::IntegrationTest
 
   test "update" do
     assert_changes -> { @user.reload.password_digest } do
-      put password_path(@user.password_reset_token), params: { password: "new", password_confirmation: "new" }
+      put password_path(@user.password_reset_token),
+        params: { password: "a longer secret", password_confirmation: "a longer secret" }
       assert_redirected_to new_session_path
     end
 
     follow_redirect!
     assert_notice "Password has been reset"
+  end
+
+  test "update refuses a password under the minimum, and says so" do
+    short = "a" * (User::MINIMUM_PASSWORD_LENGTH - 1)
+    token = @user.password_reset_token
+
+    assert_no_changes -> { @user.reload.password_digest } do
+      put password_path(token), params: { password: short, password_confirmation: short }
+      assert_redirected_to edit_password_path(token)
+    end
+
+    # The pair matched, so the old flat "did not match" alert would have been a lie.
+    follow_redirect!
+    assert_notice "too short"
   end
 
   test "update with non matching passwords" do
@@ -57,7 +72,7 @@ class PasswordsControllerTest < ActionDispatch::IntegrationTest
     end
 
     follow_redirect!
-    assert_notice "Passwords did not match"
+    assert_notice "doesn't match"
   end
 
   private

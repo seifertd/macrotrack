@@ -98,7 +98,7 @@ class Ai::ToolHandlersTest < ActiveSupport::TestCase
 
   test "copy_to_household_member asks rather than guessing when the household has several members" do
     @user.household.users.create!(
-      name: "Third", email_address: "third@example.com", password: "password"
+      name: "Third", email_address: "third@example.com", password: "a longer secret"
     )
 
     logged = JSON.parse(dispatch("log_meal", meal_input)[:content])

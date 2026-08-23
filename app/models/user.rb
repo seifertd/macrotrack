@@ -12,6 +12,14 @@ class User < ApplicationRecord
   validates :name, presence: true
   validates :timezone, presence: true, inclusion: { in: ActiveSupport::TimeZone::MAPPING.values }
 
+  # `has_secure_password` enforces presence on create and bcrypt's 72-byte ceiling, and
+  # nothing else — a one-character password saved clean. There is no signup route (§4), so
+  # this guards the one place a password is chosen by hand: the reset form. `allow_nil` so
+  # every other update, which never touches :password, is unaffected.
+  MINIMUM_PASSWORD_LENGTH = 12
+
+  validates :password, length: { minimum: MINIMUM_PASSWORD_LENGTH }, allow_nil: true
+
   TOTAL_COLUMNS = %i[ calories protein_g fat_g carbs_g ].freeze
 
   # Everyone else who shares this kitchen — the targets for "also log this for them".

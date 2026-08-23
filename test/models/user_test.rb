@@ -44,6 +44,21 @@ class UserTest < ActiveSupport::TestCase
     assert_equal(-100, @user.calories_remaining(Date.new(2026, 8, 17)))
   end
 
+  test "a password has to clear the minimum length" do
+    @user.password = "a" * (User::MINIMUM_PASSWORD_LENGTH - 1)
+    assert_not @user.valid?
+    assert_includes @user.errors.full_messages.to_sentence, "too short"
+
+    @user.password = "a" * User::MINIMUM_PASSWORD_LENGTH
+    assert @user.valid?
+  end
+
+  # Everything that saves a user without touching :password — a target change, a
+  # recalibration — must not be dragged into the rule above.
+  test "an update that never touches the password is unaffected by the length rule" do
+    assert @user.update(daily_calorie_target: 1800)
+  end
+
   test "household_members is everyone else sharing the kitchen" do
     assert_equal [ users(:partner) ], @user.household_members.to_a
   end
@@ -52,7 +67,7 @@ class UserTest < ActiveSupport::TestCase
   # person joining must widen the list, not raise or silently pick someone.
   test "household_members grows when someone joins" do
     third = households(:seifert).users.create!(
-      name: "Kid", email_address: "kid@example.com", password: "password"
+      name: "Kid", email_address: "kid@example.com", password: "a longer secret"
     )
 
     assert_equal [ third, users(:partner) ], @user.household_members.to_a  # ordered by name
