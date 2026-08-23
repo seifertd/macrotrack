@@ -87,6 +87,13 @@ module Meals
           .where(users: { household_id: @user.household_id })
           .where(consumed_at: WINDOW.ago..)
           .where(above(score, threshold))
+          # `joins` gets the score and the household filter into the query; it does not put
+          # the rows in memory. Every hint is then read back through `entry.user.local_date`
+          # and `entry.food.name` in Ai::Prompts.describe, which was a query apiece on the
+          # paid-inference path — latency in front of a spinner. `preload`, not `includes`,
+          # because the custom select below is what carries match_score and an eager_load
+          # would rewrite it away.
+          .preload(:user, :food)
           .select("meal_entries.*", "#{score} AS match_score")
           .order(Arel.sql("#{score} DESC"), consumed_at: :desc)
           .limit(HINT_LIMIT)
