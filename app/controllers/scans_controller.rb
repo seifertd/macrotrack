@@ -51,8 +51,7 @@ class ScansController < ApplicationController
 
     entry = portion.log_for!(Current.user)
 
-    redirect_to day_path(Current.user.local_date(entry.consumed_at)),
-      notice: "Logged #{helpers.calories(entry.calories)} kcal."
+    redirect_to_logged_day(entry)
   end
 
   # The manual fallback. Saves the barcode alongside the numbers, so the next scan of

@@ -30,8 +30,7 @@ class FoodsController < ApplicationController
     # being typed or estimated, which is exactly what `matched` means everywhere else.
     entry = portion.log_for!(Current.user, logged_as: "matched")
 
-    redirect_to day_path(Current.user.local_date(entry.consumed_at)),
-      notice: "Logged #{helpers.calories(entry.calories)} kcal."
+    redirect_to_logged_day(entry)
   end
 
   private
