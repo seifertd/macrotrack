@@ -36,3 +36,8 @@
 
 /app/assets/builds/*
 !/app/assets/builds/.keep
+
+# Claude Code. .claude/AGENTS.md is shared project knowledge and is committed;
+# anything machine-local under .claude/ is not.
+/.claude/settings.local.json
+/.claude/*.local.json
