@@ -22,7 +22,11 @@ class PasswordsController < ApplicationController
       @user.sessions.destroy_all
       redirect_to new_session_path, notice: "Password has been reset."
     else
-      redirect_to edit_password_path(params[:token]), alert: "Passwords did not match."
+      # The real reason, not a guess at it. Once :password carries a length rule, a flat
+      # "Passwords did not match" sends someone who typed a short *matching* pair back to
+      # retype the same thing forever.
+      redirect_to edit_password_path(params[:token]),
+        alert: @user.errors.full_messages.to_sentence.presence || "Password could not be reset."
     end
   end
 
