@@ -28,11 +28,17 @@ class MealEntry < ApplicationRecord
   # What the household has eaten lately, newest first — the pool the repeat picker draws
   # from. Scoped to the household rather than the user because the whole point is picking
   # off the other person's plate.
+  # `preload`, not `includes`. The search path chains `named_like` onto this, whose string
+  # `where` mentions foods.name; that turned the `includes` into an eager_load, which joined
+  # `foods` a second time alongside named_like's own LEFT JOIN and pulled every `users`
+  # column — `password_digest`, a bcrypt hash — into the web process once per result row.
+  # Preloading keeps the two associations in their own queries, so the only join here is
+  # the one the filter actually needs.
   def self.recent_in_household(household, since: 30.days.ago, limit: 100)
     joins(:user).where(users: { household_id: household.id })
       .where(consumed_at: since..)
       .order(consumed_at: :desc).limit(limit)
-      .includes(:food, :user)
+      .preload(:food, :user)
   end
 
   # The same typed search as `Food.named_like`, against what the household has actually

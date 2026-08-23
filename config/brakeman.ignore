@@ -44,18 +44,18 @@
       "cwe_id": [
         89
       ],
-      "note": "The interpolated fragment comes from Meals::Matcher#score_sql, which builds it with sanitize_sql_array: the chat text is a bound parameter and \"foods.name\" is a column name written as a literal in our own code, never user input \u2014 a food's own name never reaches the SQL string at all. It is interpolated rather than bound because the same expression has to appear in SELECT and ORDER BY, and neither takes bind parameters. Brakeman cannot follow the call, so all it sees is the interpolation. Reviewed 2026-08-19 (WP4.4); re-reviewed 2026-08-22 after the fragment moved, and the threshold comparison went through Arel at the same time so it no longer interpolates at all."
+      "note": "The interpolated fragment comes from Meals::Matcher#score_sql, which builds it with sanitize_sql_array: the chat text is a bound parameter and \"foods.name\" is a column name written as a literal in our own code, never user input — a food's own name never reaches the SQL string at all. It is interpolated rather than bound because the same expression has to appear in SELECT and ORDER BY, and neither takes bind parameters. Brakeman cannot follow the call, so all it sees is the interpolation. Reviewed 2026-08-19 (WP4.4); re-reviewed 2026-08-22 after the fragment moved, and the threshold comparison went through Arel at the same time so it no longer interpolates at all."
     },
     {
       "warning_type": "SQL Injection",
       "warning_code": 0,
-      "fingerprint": "fb7eb4751c5137e68f7733ad4d286c8d98eec56f70bcb2b3e21fd16a60de0383",
+      "fingerprint": "1bf645235182ab43aaeee32ba639db9104d4c3204a77e57bf8dde22f5c8b20c3",
       "check_name": "SQL",
       "message": "Possible SQL injection",
       "file": "app/services/meals/matcher.rb",
-      "line": 90,
+      "line": 97,
       "link": "https://brakemanscanner.org/docs/warning_types/sql_injection/",
-      "code": "MealEntry.joins(:user, :food).where(:users => ({ :household_id => user.household_id })).where(:consumed_at => ((WINDOW.ago..))).where(above(score_sql(\"foods.name\"), threshold)).select(\"meal_entries.*\", \"#{score_sql(\"foods.name\")} AS match_score\")",
+      "code": "MealEntry.joins(:user, :food).where(:users => ({ :household_id => user.household_id })).where(:consumed_at => ((WINDOW.ago..))).where(above(score_sql(\"foods.name\"), threshold)).preload(:user, :food).select(\"meal_entries.*\", \"#{score_sql(\"foods.name\")} AS match_score\")",
       "render_path": null,
       "location": {
         "type": "method",
@@ -67,7 +67,7 @@
       "cwe_id": [
         89
       ],
-      "note": "The interpolated fragment comes from Meals::Matcher#score_sql, which builds it with sanitize_sql_array: the chat text is a bound parameter and \"foods.name\" is a column name written as a literal in our own code, never user input \u2014 a food's own name never reaches the SQL string at all. It is interpolated rather than bound because the same expression has to appear in SELECT and ORDER BY, and neither takes bind parameters. Brakeman cannot follow the call, so all it sees is the interpolation. Reviewed 2026-08-19 (WP4.4); re-reviewed 2026-08-22 after the fragment moved, and the threshold comparison went through Arel at the same time so it no longer interpolates at all."
+      "note": "The interpolated fragment comes from Meals::Matcher#score_sql, which builds it with sanitize_sql_array: the chat text is a bound parameter and \"foods.name\" is a column name written as a literal in our own code, never user input — a food's own name never reaches the SQL string at all. It is interpolated rather than bound because the same expression has to appear in SELECT and ORDER BY, and neither takes bind parameters. Brakeman cannot follow the call, so all it sees is the interpolation. Reviewed 2026-08-19 (WP4.4); re-reviewed 2026-08-22 after the fragment moved, and the threshold comparison went through Arel at the same time so it no longer interpolates at all. Re-fingerprinted 2026-08-23 after adding .preload(:user, :food) to fix an N+1; the SQL string is built exactly as before."
     }
   ],
   "brakeman_version": "8.0.6"
