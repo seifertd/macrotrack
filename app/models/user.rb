@@ -78,6 +78,13 @@ class User < ApplicationRecord
   end
 
   def calories_remaining(at = Time.current)
-    daily_calorie_target.to_i - day_totals(at)[:calories].to_i
+    remaining_from(day_totals(at))
+  end
+
+  # Split out so a caller that already has the day's totals in hand — the header strip,
+  # which renders on every page — isn't made to re-run the same SUM just to subtract it
+  # from the target.
+  def remaining_from(totals)
+    daily_calorie_target.to_i - totals[:calories].to_i
   end
 end
