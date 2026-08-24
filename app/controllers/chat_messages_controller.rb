@@ -1,5 +1,10 @@
 class ChatMessagesController < ApplicationController
   include OffersRetrieval
+  include RateLimitsTurns
+
+  # Twenty typed turns a minute is far past meal-logging pace and still well short of what
+  # a resubmit loop would spend. See RateLimitsTurns for what each turn actually costs.
+  rate_limit_turns to: 20, within: 1.minute
 
   # The user's message is created here rather than in the job so it renders on the
   # submit, not a second later when a worker picks the job up. Design §16 shows the job

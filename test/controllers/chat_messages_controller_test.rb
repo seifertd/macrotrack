@@ -1,7 +1,10 @@
 require "test_helper"
 
 class ChatMessagesControllerTest < ActionDispatch::IntegrationTest
-  setup { sign_in_as users(:doug) }
+  setup do
+    Rails.cache.clear   # the rate-limit counter lives here and outlives an example
+    sign_in_as users(:doug)
+  end
 
   test "stores the typed turn and enqueues the model call" do
     assert_difference -> { Message.count }, 1 do
@@ -80,5 +83,42 @@ class ChatMessagesControllerTest < ActionDispatch::IntegrationTest
       post chat_messages_path, params: { chat_message: { text: "a bowl of chili" } }
     end
     assert_redirected_to new_session_path
+  end
+  # Each typed turn is up to five claude-opus-5 calls, and nothing coalesces a resubmit.
+  test "a burst past the limit is refused rather than billed" do
+    limit = 20
+
+    limit.times { |n| post chat_messages_path, params: { chat_message: { text: "meal #{n}" } }, as: :turbo_stream }
+    assert_response :success, "the limit itself must not bite a real conversation"
+
+    assert_no_difference -> { Message.count } do
+      assert_no_enqueued_jobs only: AiChatTurnJob do
+        post chat_messages_path, params: { chat_message: { text: "one too many" } }, as: :turbo_stream
+      end
+    end
+
+    assert_response :too_many_requests
+  end
+
+  # A composer that never comes back reads as the app having died rather than said no.
+  test "a refused turn still says so and hands the composer back" do
+    21.times { post chat_messages_path, params: { chat_message: { text: "x" } }, as: :turbo_stream }
+
+    assert_response :too_many_requests
+    assert_match(/turbo-stream action="append" target="messages"/, response.body)
+    assert_match(/turbo-stream action="replace" target="composer"/, response.body)
+    assert_match(/Give it a moment/, response.body)
+  end
+
+  # Both accounts sit behind one household NAT, so the default IP key would let one
+  # person's stuck client lock the other out of their own tracker.
+  test "the limit is per person, not per address" do
+    21.times { post chat_messages_path, params: { chat_message: { text: "x" } }, as: :turbo_stream }
+    assert_response :too_many_requests
+
+    sign_in_as users(:partner)
+    post chat_messages_path, params: { chat_message: { text: "my own first turn" } }, as: :turbo_stream
+
+    assert_response :success
   end
 end

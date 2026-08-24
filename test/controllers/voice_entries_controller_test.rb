@@ -1,7 +1,10 @@
 require "test_helper"
 
 class VoiceEntriesControllerTest < ActionDispatch::IntegrationTest
-  setup { sign_in_as users(:doug) }
+  setup do
+    Rails.cache.clear   # the rate-limit counter lives here and outlives an example
+    sign_in_as users(:doug)
+  end
 
   test "the recording is kept, transcribed, and joins the thread as a spoken turn" do
     with_transcript("ten ikea meatballs with mashed potatoes and gravy") do
@@ -84,5 +87,34 @@ class VoiceEntriesControllerTest < ActionDispatch::IntegrationTest
     post voice_entries_path, params: { voice_entry: { audio: recording } }
 
     assert_redirected_to new_session_path
+  end
+  # The point of the limit is what does *not* happen: transcription runs inline in a Puma
+  # thread for 8-12s on both cores, and there are three threads. A refused upload has to be
+  # turned away before whisper is handed anything, or the limit costs what it was meant to save.
+  test "a burst of recordings is refused before it reaches whisper" do
+    limit = 6
+
+    provider = with_transcript("a bowl of chili") do
+      limit.times { post voice_entries_path, params: { voice_entry: { audio: recording } }, as: :turbo_stream }
+      assert_response :success, "the limit itself must not bite someone genuinely dictating"
+
+      assert_no_difference -> { Message.count } do
+        post voice_entries_path, params: { voice_entry: { audio: recording } }, as: :turbo_stream
+      end
+    end
+
+    assert_response :too_many_requests
+    assert_equal limit, provider.transcribed.length, "the refused upload still reached whisper"
+  end
+
+  # A refused dictation leaves the mic button mid-recording unless the composer comes back.
+  test "a refused recording hands the composer back" do
+    with_transcript do
+      7.times { post voice_entries_path, params: { voice_entry: { audio: recording } }, as: :turbo_stream }
+    end
+
+    assert_response :too_many_requests
+    assert_match(/turbo-stream action="replace" target="composer"/, response.body)
+    assert_match(/Give it a moment/, response.body)
   end
 end
