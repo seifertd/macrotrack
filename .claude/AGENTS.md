@@ -22,6 +22,26 @@ one lives is noted; the values stay on the host and in `credentials.yml.enc`.
 - **Voice**: whisper.cpp, self-hosted on the box, `small.en`. Not an API — there is no
   STT vendor and no per-minute cost. See `app/services/stt/whisper.rb` for why `small.en`
   and not `base.en`, and why there is deliberately no initial prompt.
+- **Rate limits** on the four endpoints that cost something. `sessions#create` and
+  `passwords#create` are **10 per 3 minutes, keyed by IP** (the default key — right for
+  auth, where the caller is by definition not yet a user). The two composer endpoints go
+  through `RateLimitsTurns` — `chat_messages#create` at **20/min**, `voice_entries#create`
+  at **6/min**. The two numbers differ because the two costs do: a typed turn is up to five
+  Opus calls, a dictated one is 8–12s of both cores in a Puma thread.
+
+  Three things to know before touching them:
+
+  - They key on **`Current.user.id`**, not `rate_limit`'s default of `request.remote_ip`.
+    Both accounts sit behind one household NAT, so an IP-keyed counter would let one
+    person's stuck client lock the other out. Keep it that way.
+  - The refusal renders a **turbo_stream that replaces the composer**. Turbo's stream
+    observer dispatches on content type with no status check, so the body lands fine on a
+    429 — but without the composer replace, a refused dictation leaves the mic button
+    stuck mid-recording and the app reads as dead rather than as having said no.
+  - It bounds a **runaway, not concurrency**. Two people genuinely recording at the same
+    moment still take two of Puma's three threads. Serialising that needs a lock, not a
+    counter, and at two users it has not earned one. If the site ever stalls while both of
+    you dictate, that is the reason — not the limit failing.
 
 ## Production
 
@@ -101,12 +121,21 @@ Let's Encrypt, managed by certbot — **don't hand-edit the `# managed by Certbo
 
 ## Verifying work here
 
-`bin/rails test` (~280 tests, ~2s), `bin/rubocop`, `bin/brakeman -q`. All three should be
+`bin/rails test` (~290 tests, ~2s), `bin/rubocop`, `bin/brakeman -q`. All three should be
 clean before a deploy; brakeman's baseline is **0 warnings / 3 ignored**, each ignore
 carrying a reasoned note in `config/brakeman.ignore`.
 
-Two traps that have already bitten:
+Three traps that have already bitten:
 
+- **The test cache store is `:memory_store`, and it has to stay a real one.** It was
+  `:null_store`, whose `increment` returns `nil` — which `rate_limit` reads as "under the
+  limit" forever, so every rate-limit test passes whether or not a limit exists. `store:`
+  is captured when the class loads, so it cannot be swapped per-test; the env config is the
+  only lever. Rate-limit tests need `Rails.cache.clear` in `setup`, because the counter
+  outlives an example. Nothing else in the app caches except `PlanDocument`, which keys on
+  the source file's mtime. The same trap exists one layer down in production: if
+  `SolidCache::Store#increment` ever stopped returning an integer, the limits would silently
+  no-op on the box while passing locally — worth re-probing if you change the cache backend.
 - **Editing a query that brakeman ignores changes its fingerprint**, which resurfaces the
   warning as new. Re-point the existing entry and keep its note; don't suppress a fresh one.
 - **A green suite is not a measurement.** Query counts and N+1s in this codebase have been
