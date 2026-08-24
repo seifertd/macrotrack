@@ -3,6 +3,12 @@
 # which is the point: retrieval, the tool loop and the day's log all already work.
 class VoiceEntriesController < ApplicationController
   include OffersRetrieval
+  include RateLimitsTurns
+
+  # Tighter than the typed limit, because this one spends the box rather than the budget.
+  # A clip takes 8-12s to transcribe, so six a minute is already more than a person can
+  # physically produce — it exists to stop a client that has stopped asking permission.
+  rate_limit_turns to: 6, within: 1.minute
 
   def create
     audio = params.dig(:voice_entry, :audio)

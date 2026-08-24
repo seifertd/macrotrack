@@ -1,0 +1,9 @@
+<%# Turbo processes a turbo-stream body on any status — its stream observer checks the
+    content type and nothing else — so this still lands on a 429. %>
+<%= turbo_stream.append "messages" do %>
+  <%= render "chats/failure", message: @failure %>
+<% end %>
+
+<%= turbo_stream.replace "composer" do %>
+  <%= render "chats/composer" %>
+<% end %>

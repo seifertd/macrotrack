@@ -20,7 +20,11 @@ Rails.application.configure do
 
   # Show full error reports.
   config.consider_all_requests_local = true
-  config.cache_store = :null_store
+  # :memory_store rather than :null_store because the rate limits on the composer
+  # endpoints are backed by the cache, and a null store's increment returns nil — which
+  # reads as "under the limit" forever and makes every rate-limit test pass vacuously.
+  # Nothing else here caches except PlanDocument, which keys on the source file's mtime.
+  config.cache_store = :memory_store
 
   # Render exception templates for rescuable exceptions and raise for other exceptions.
   config.action_dispatch.show_exceptions = :rescuable
