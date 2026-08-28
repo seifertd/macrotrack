@@ -1,6 +1,13 @@
 class MealEntriesController < ApplicationController
   before_action :set_meal_entry, only: %i[ edit update destroy ]
 
+  # `edit` is re-rendered by a failed `update`, where the entry holds whatever was just
+  # submitted — including a blank "When", which is one of the things that can fail. The
+  # view's own header link has to resolve a day from that, so it uses this rather than
+  # calling `local_date` on a nil and raising over the top of the error it was rendering
+  # to show.
+  helper_method :entry_date
+
   # The add screen: every way into the log on one page, reached from the header so it
   # stays one tap away however long the day's list gets. It carries the day it was
   # opened from, because logging to today while looking at the 16th is the same kind of

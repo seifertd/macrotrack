@@ -100,14 +100,23 @@ class FoodPortion
 
   # `logged_as` mirrors MealPortion's naming for the same reason: this object already has
   # a `food`, and the entry's `source` is a different idea from either.
+  #
+  # One `Time.current`, read once and used twice: the meal has to be the one that clock
+  # reading implies, not the one a second reading a microsecond later might. The meal is
+  # read off the figures being written too, so it can never disagree with the row it
+  # lands on.
   def attributes_for(user, logged_as: "barcode")
-    scaled.merge(
+    at = Time.current
+    figures = scaled
+
+    figures.merge(
       user: user,
       food_id: food.id,
       quantity_grams: grams,
       source: logged_as,
       raw_input: food.name,
-      consumed_at: Time.current
+      meal_type: user.meal_type_at(at, calories: figures[:calories]),
+      consumed_at: at
     )
   end
 

@@ -130,6 +130,64 @@ class FoodPortionTest < ActiveSupport::TestCase
     assert_in_delta 53.6, entry.calories.to_f, 0.01
   end
 
+  # Nothing on the picker's food rows or the scanner asks which meal it is, and until
+  # WP4.4 nothing had to: the screen only listed meals somebody had eaten, and those
+  # carry their own. Once a food could be logged straight off the list, every entry it
+  # wrote landed with no meal on it.
+  # 400g of this is 492 kcal — a meal, so the hour gets to say which one.
+  test "a meal-sized portion takes its meal from the clock it is stamped with" do
+    { 7 => "breakfast", 12 => "lunch", 19 => "dinner", 23 => "snack" }.each do |hour, expected|
+      travel_to Time.use_zone(@doug.timezone) { Time.zone.local(2026, 8, 28, hour, 15) } do
+        entry = FoodPortion.new(@yogurt, grams: 400).log_for!(@doug)
+
+        assert_equal expected, entry.meal_type, "#{hour}:15 local"
+        assert_equal @doug.local_date(entry.consumed_at), Date.new(2026, 8, 28)
+      end
+    end
+  end
+
+  # The case that prompted the rule: 28g of havarti is 108 kcal, and six in the morning
+  # is inside the breakfast window. It is a snack that happens to be early, and the clock
+  # on its own would have called it a meal.
+  test "a portion too small to be a meal is a snack whatever the hour says" do
+    havarti = Food.create!(name: "Havarti Cheese", source: "openfoodfacts",
+      calories_per_100g: 387.32, serving_g: 28)
+
+    [ 7, 12, 19 ].each do |hour|
+      travel_to Time.use_zone(@doug.timezone) { Time.zone.local(2026, 8, 28, hour, 15) } do
+        entry = FoodPortion.new(havarti, grams: 28).log_for!(@doug)
+
+        assert_in_delta 108.45, entry.calories.to_f, 0.01
+        assert_equal "snack", entry.meal_type, "#{hour}:15 local"
+      end
+    end
+  end
+
+  # The boundary, pinned so a later nudge to the ceiling is a deliberate one.
+  test "the snack ceiling is a floor for being a meal" do
+    lunchtime = Time.use_zone(@doug.timezone) { Time.zone.local(2026, 8, 28, 12, 15) }
+
+    travel_to lunchtime do
+      # 123 kcal per 100g, so 243g is just under and 244g just over.
+      assert_equal "snack", FoodPortion.new(@yogurt, grams: 243).log_for!(@doug).meal_type
+      assert_equal "lunch", FoodPortion.new(@yogurt, grams: 244).log_for!(@doug).meal_type
+    end
+  end
+
+  # The windows are read in the user's zone, not the server's, for the same reason
+  # `local_date` exists — the boundary has to be the one they are standing in.
+  test "the meal is read where the user is standing" do
+    tokyo = User.create!(name: "Tokyo", email_address: "tokyo@example.com",
+      password: "a-long-enough-password", household: @doug.household, timezone: "Asia/Tokyo")
+
+    # 03:00 UTC is 8pm the previous day in Los Angeles and noon in Tokyo. 400g so the
+    # portion is a meal in both places and the zone is the only thing left to differ on.
+    travel_to Time.utc(2026, 8, 29, 3, 0) do
+      assert_equal "dinner", FoodPortion.new(@yogurt, grams: 400).log_for!(@doug).meal_type
+      assert_equal "lunch", FoodPortion.new(@yogurt, grams: 400).log_for!(tokyo).meal_type
+    end
+  end
+
   test "a barcode entry is not hedged the way an estimate is" do
     entry = FoodPortion.new(@yogurt, grams: 100).log_for!(@doug)
 

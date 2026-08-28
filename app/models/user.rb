@@ -55,6 +55,13 @@ class User < ApplicationRecord
     local_date
   end
 
+  # Which meal a portion of this size, eaten at this moment, reads as where this user is
+  # standing. Same reason `local_date` exists: 8pm in Los Angeles is dinner whatever the
+  # server's clock says.
+  def meal_type_at(at = Time.current, calories: nil)
+    MealEntry.infer_meal_type(hour: at.in_time_zone(timezone).hour, calories: calories)
+  end
+
   # A local calendar day expressed as a UTC-comparable range, so the SQL boundary
   # matches the boundary the user actually experiences.
   def day_range(date)
