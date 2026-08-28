@@ -13,6 +13,37 @@ class MealEntry < ApplicationRecord
   MEAL_TYPES = %w[ breakfast lunch dinner snack ].freeze
   CONFIDENCES = %w[ high medium low ].freeze
 
+  # Which meal something reads as, for the two paths that log a food without asking —
+  # the picker's food rows and the scanner, both of which go through FoodPortion.
+  # Repeating an eaten meal has a real answer to copy (MealPortion takes the source's)
+  # and the chat requires one in its tool call, so this is the only place left where the
+  # alternative is no meal at all.
+  #
+  # Size is asked first, because it is the better evidence. 28g of havarti at six in the
+  # morning is not breakfast however early it is — it is a snack that happens to be
+  # early, and the clock alone would call it a meal. Only a portion big enough to be a
+  # meal gets to be one, and then the hour says which.
+  #
+  # Both halves are guesses, and cheap ones: they are visible on the entry the moment it
+  # is written and editable from the screen it is written to. The thing they replace —
+  # a blank — is not more honest, just emptier.
+  SNACK_CEILING = 300
+
+  MEAL_TYPE_HOURS = { "breakfast" => 5..10, "lunch" => 11..15, "dinner" => 16..20 }.freeze
+
+  def self.infer_meal_type(hour:, calories: nil)
+    return "snack" if calories && calories < SNACK_CEILING
+
+    MEAL_TYPE_HOURS.find { |_, hours| hours.cover?(hour) }&.first || "snack"
+  end
+
+  # The picker, the scanner and the repeat screen all write entries with no meal type —
+  # none of them asks, because none of them has to. The edit form renders those as its
+  # blank option, which posts back "" rather than nil, and "" is not in the list. So the
+  # one screen for fixing an entry refused to save any entry logged from a food until a
+  # meal was chosen, on a field that is optional everywhere else.
+  normalizes :meal_type, with: ->(value) { value.presence }
+
   validates :source, presence: true, inclusion: { in: SOURCES }
   validates :consumed_at, presence: true
   validates :meal_type, inclusion: { in: MEAL_TYPES }, allow_nil: true

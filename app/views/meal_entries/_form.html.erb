@@ -8,30 +8,36 @@
           placeholder: "chicken burrito bowl", class: field %>
   </div>
 
+  <%# Every one of these columns is a decimal, and only the ones typed here arrive whole.
+      An entry logged off a food is a per-100g figure scaled by a portion — 28g of havarti
+      is 108.45 kcal — so a step the browser can round to rejects the number the row was
+      saved with, on the screen whose only job is to change it. `any` is the honest step
+      for a decimal column; the display helpers still round every figure the day page
+      shows. `decimal` inputmode for the same reason: a numeric keypad has no point on it. %>
   <div class="grid grid-cols-2 gap-3">
     <div>
       <%= form.label :calories, "Calories", class: label %>
-      <%= form.number_field :calories, required: true, step: 1, min: 0,
-            inputmode: "numeric", class: field %>
+      <%= form.number_field :calories, required: true, step: :any, min: 0,
+            inputmode: "decimal", class: field %>
     </div>
     <div>
       <%= form.label :quantity_grams, "Grams", class: label %>
-      <%= form.number_field :quantity_grams, step: 1, min: 0, inputmode: "numeric", class: field %>
+      <%= form.number_field :quantity_grams, step: :any, min: 0, inputmode: "decimal", class: field %>
     </div>
   </div>
 
   <div class="grid grid-cols-3 gap-3">
     <div>
       <%= form.label :protein_g, "Protein", class: label %>
-      <%= form.number_field :protein_g, step: 0.1, min: 0, inputmode: "decimal", class: field %>
+      <%= form.number_field :protein_g, step: :any, min: 0, inputmode: "decimal", class: field %>
     </div>
     <div>
       <%= form.label :fat_g, "Fat", class: label %>
-      <%= form.number_field :fat_g, step: 0.1, min: 0, inputmode: "decimal", class: field %>
+      <%= form.number_field :fat_g, step: :any, min: 0, inputmode: "decimal", class: field %>
     </div>
     <div>
       <%= form.label :carbs_g, "Carbs", class: label %>
-      <%= form.number_field :carbs_g, step: 0.1, min: 0, inputmode: "decimal", class: field %>
+      <%= form.number_field :carbs_g, step: :any, min: 0, inputmode: "decimal", class: field %>
     </div>
   </div>
 

@@ -2,7 +2,7 @@
 
 <div class="flex items-center justify-between">
   <h1 class="text-lg font-semibold">Edit entry</h1>
-  <%= link_to "Back", day_path(Current.user.local_date(@meal_entry.consumed_at)),
+  <%= link_to "Back", day_path(entry_date(@meal_entry)),
         class: "text-sm text-slate-500 underline hover:no-underline" %>
 </div>
 

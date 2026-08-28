@@ -130,6 +130,57 @@ class MealEntriesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # The same failure one column over, and from the same cause: a step the browser can
+  # round to, over a column that does not round. Every macro is a decimal, and only the
+  # ones typed into this form arrive whole — an entry logged off a food is a per-100g
+  # figure scaled by a portion, so 28g of havarti is 108.45 kcal. The edit screen refused
+  # to save the number it had just rendered: "the two nearest valid values are 108 and 109".
+  test "the edit screen accepts the decimals the row was saved with" do
+    entry = @user.meal_entries.create!(
+      source: "matched", consumed_at: Time.utc(2026, 8, 17, 15, 30),
+      calories: 108.45, quantity_grams: 28, protein_g: 6.42, fat_g: 9.03, carbs_g: 0.19
+    )
+
+    get edit_meal_entry_path(entry)
+
+    assert_response :success
+    %w[ calories quantity_grams protein_g fat_g carbs_g ].each do |field|
+      assert_select "input[name=?][step=?]", "meal_entry[#{field}]", "any"
+      # A numeric keypad has no decimal point on it, so the field would be unfixable
+      # by hand even once the browser stopped refusing it.
+      assert_select "input[name=?][inputmode=?]", "meal_entry[#{field}]", "decimal"
+    end
+  end
+
+  # Nothing that logs off a food asks which meal it was, so the edit form shows its blank
+  # option — which posts "" and used to fail the inclusion check. The screen for fixing an
+  # entry has to be able to save one it did not create.
+  test "an entry with no meal type saves without being made to pick one" do
+    entry = @user.meal_entries.create!(
+      source: "matched", consumed_at: Time.utc(2026, 8, 17, 15, 30), calories: 108.45
+    )
+    assert_nil entry.meal_type
+
+    patch meal_entry_path(entry), params: { meal_entry: entry_params(meal_type: "") }
+
+    assert_redirected_to day_path(Date.new(2026, 8, 17))
+    assert_nil entry.reload.meal_type
+  end
+
+  test "a fractional figure survives the round trip through the form" do
+    entry = @user.meal_entries.create!(
+      source: "matched", consumed_at: Time.utc(2026, 8, 17, 15, 30), calories: 108.45
+    )
+
+    patch meal_entry_path(entry),
+      params: { meal_entry: entry_params(calories: "121.9", protein_g: "6.42", quantity_grams: "31.5") }
+
+    entry.reload
+    assert_equal 121.9, entry.calories.to_f
+    assert_equal 6.42, entry.protein_g.to_f
+    assert_equal 31.5, entry.quantity_grams.to_f
+  end
+
   test "updating an entry keeps it scoped and redirects to its day" do
     entry = @user.meal_entries.create!(
       source: "manual", calories: 100, consumed_at: Time.utc(2026, 8, 17, 15, 30)
@@ -139,6 +190,22 @@ class MealEntriesControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal 777, entry.reload.calories.to_i
     assert_redirected_to day_path(Date.new(2026, 8, 17))
+  end
+
+  # The crash this replaced: `update` re-renders :edit, and the header link resolved a day
+  # from the consumed_at the failed validation had just left nil — a 500 thrown over the
+  # top of the error message it was rendering in order to explain itself.
+  test "a blank When is reported rather than crashing the screen that reports it" do
+    entry = @user.meal_entries.create!(
+      source: "manual", calories: 100, consumed_at: Time.utc(2026, 8, 17, 15, 30)
+    )
+
+    patch meal_entry_path(entry), params: { meal_entry: entry_params(consumed_at: "") }
+
+    assert_response :unprocessable_entity
+    assert_select "li", text: /Consumed at can.t be blank/
+    assert_select "a", text: "Back"
+    assert_equal Time.utc(2026, 8, 17, 15, 30), entry.reload.consumed_at
   end
 
   test "deleting an entry removes it" do
