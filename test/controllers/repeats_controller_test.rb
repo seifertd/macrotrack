@@ -148,6 +148,40 @@ class RepeatsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", chat_path
   end
 
+  # The search answers while you type. That only works if what comes back is the list
+  # alone: the box, its caret and the open keyboard are outside the frame the form
+  # targets, so a keystroke never replaces anything being touched.
+  test "the ranked list sits in a frame the search form targets" do
+    juice = magic_juice
+
+    get repeats_path(q: "magic juice")
+
+    assert_select "form[data-turbo-frame=?]", "results"
+    assert_select "input[name=q][data-action=?]", "input->search#submit"
+    assert_select "turbo-frame#results a[href=?]", food_path(juice, q: "magic juice")
+  end
+
+  # Everything in that frame is a way off this screen, and none of those screens has a
+  # frame by this name to hand back. Without `_top` a result would open into a hole.
+  test "the results frame sends its own links to the top level" do
+    get repeats_path(q: "magic juice")
+
+    assert_select "turbo-frame#results[target=?]", "_top"
+  end
+
+  # The button is what the form does with no JavaScript, and this screen has to keep
+  # working before the module has loaded — which on a phone opened from the home screen
+  # is a real fraction of the time.
+  test "the search still submits without the typing enhancement" do
+    magic_juice
+
+    get repeats_path
+    assert_select "input[type=submit][value=?]", "Search"
+
+    get repeats_path, params: { q: "magic juice" }
+    assert_select "body", text: /Magic Juice/
+  end
+
   test "the portion screen defaults to the source portion" do
     source = log(@partner, "their dinner", quantity_grams: 360, calories: 559)
 
