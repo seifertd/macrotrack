@@ -14,46 +14,70 @@
 </p>
 
 <%# Deliberately not autofocused. This is a phone: the common case is tapping last
-    night's dinner, and a keyboard covering half the list to get there is a tax on it. %>
-<%= form_with url: repeats_path, method: :get, class: "mt-3" do %>
+    night's dinner, and a keyboard covering half the list to get there is a tax on it.
+
+    The form targets the results frame below rather than the page, which is what lets it
+    be resubmitted on every keystroke: the box, its caret and the open keyboard are all
+    outside the frame, so nothing that gets replaced is anything you are touching. The
+    button is what the same form does without JavaScript, unchanged. %>
+<%= form_with url: repeats_path, method: :get, class: "mt-3",
+      data: { turbo_frame: "results", controller: "search" } do %>
   <div class="flex gap-2">
     <%= search_field_tag :q, @query, placeholder: "Search by name",
           autocomplete: "off", autocapitalize: "none",
-          class: "min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-base focus:border-slate-500 focus:outline-none" %>
+          class: "min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-base focus:border-slate-500 focus:outline-none",
+          data: { action: "input->search#submit" } %>
     <%= submit_tag "Search",
           class: "shrink-0 cursor-pointer rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700" %>
   </div>
 <% end %>
 
-<% if @query.present? %>
-  <p class="mt-3 text-sm text-slate-500">
-    <%= pluralize(@results.size, "match") %> for “<%= @query %>”.
-    <%= link_to "Clear", repeats_path, class: "underline hover:no-underline" %>
-  </p>
-<% end %>
+<%# `target: "_top"` because everything in here is a way *off* this screen — a result, the
+    Clear link, the chat. A frame swallows its own links by default, and the portion screen
+    they lead to has no frame by this name to hand back.
 
-<% if @results.any? %>
+    The fade is the only thing that says a keystroke was heard. Turbo sets aria-busy on the
+    frame for the length of the request, so a search that answers quickly never shows it
+    and a slow one dims rather than blanking — the previous list stays readable until the
+    new one is there.
+
+    `replace` rather than `advance` so the query lands in the URL without every keystroke
+    landing in the history: leaving for a result and pressing back returns to the search
+    that found it, and back again leaves the screen instead of retyping "havart", "havar",
+    "hava" one entry at a time. %>
+<%= turbo_frame_tag "results", target: "_top",
+      class: "block aria-busy:opacity-60 aria-busy:transition-opacity",
+      data: { turbo_action: "replace" } do %>
   <% if @query.present? %>
-    <h2 class="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Best match first</h2>
+    <p class="mt-3 text-sm text-slate-500">
+      <%= pluralize(@results.size, "match") %> for “<%= @query %>”.
+      <%= link_to "Clear", repeats_path, class: "underline hover:no-underline" %>
+    </p>
   <% end %>
-  <%# Full class names, not an interpolated suffix — Tailwind scans this file for the
-      literal string and cannot see one that is assembled at render time. %>
-  <ul class="<%= @query.present? ? "mt-2" : "mt-4" %> divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
-    <%= render partial: "repeats/result", collection: @results, as: :result,
-          locals: { user: @user, query: @query } %>
-  </ul>
-<% end %>
 
-<% if @results.none? %>
-  <div class="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+  <% if @results.any? %>
     <% if @query.present? %>
-      <p>Nothing on file matches “<%= @query %>”.</p>
-      <p class="mt-2">
-        <%= link_to "Say it in the chat instead", chat_path, class: "underline hover:no-underline" %> —
-        it can work the numbers out.
-      </p>
-    <% else %>
-      <p>Nothing logged in the last month yet. Log a meal first and it'll show up here.</p>
+      <h2 class="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Best match first</h2>
     <% end %>
-  </div>
+    <%# Full class names, not an interpolated suffix — Tailwind scans this file for the
+        literal string and cannot see one that is assembled at render time. %>
+    <ul class="<%= @query.present? ? "mt-2" : "mt-4" %> divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <%= render partial: "repeats/result", collection: @results, as: :result,
+            locals: { user: @user, query: @query } %>
+    </ul>
+  <% end %>
+
+  <% if @results.none? %>
+    <div class="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+      <% if @query.present? %>
+        <p>Nothing on file matches “<%= @query %>”.</p>
+        <p class="mt-2">
+          <%= link_to "Say it in the chat instead", chat_path, class: "underline hover:no-underline" %> —
+          it can work the numbers out.
+        </p>
+      <% else %>
+        <p>Nothing logged in the last month yet. Log a meal first and it'll show up here.</p>
+      <% end %>
+    </div>
+  <% end %>
 <% end %>
