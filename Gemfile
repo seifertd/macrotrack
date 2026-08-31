@@ -64,5 +64,5 @@ group :development do
   gem "capistrano-rails", require: false
 end
 
-gem "anthropic", "~> 1.62"
+gem "anthropic", "~> 1.67"
 gem "faraday", "~> 2.14"
