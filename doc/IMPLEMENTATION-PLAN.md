@@ -193,6 +193,7 @@ Three things this section didn't specify, decided during the build:
 - **Custom format, not plain SQL + gzip.** `pg_dump -Fc` is already compressed and lets `pg_restore` do selective and parallel restores off the same file. Both scripts check that a dump actually contains table data, because `pg_dump` exits 0 on an empty result and a useless backup is otherwise indistinguishable from a good one by size alone.
 - **The offsite copy pulls; das never pushes.** So das holds no credential for the media box. The key is a dedicated ed25519 pair generated on xbmc and restricted on the das side to `command="/usr/bin/rrsync -ro /home/doug/webapps/backups/macrotrack",restrict` — read-only, that directory only, no shell, no forwarding.
 - **Only the primary database is dumped.** cache/queue/cable are Solid-* scratch state, regenerable from `db/*_schema.rb`.
+- **The puller that actually runs is a separate copy.** It is installed on xbmc at `~/Tools/pull_macros_backup.sh`; the repo's copy is `script/pull_backups_xbmc.sh`. Editing one does not update the other.
 
 Both halves write a `last_success` marker and check its age rather than trusting the directory listing, since a cron that quietly stopped leaves a directory full of yesterday's dumps that looks perfectly healthy.
 
@@ -756,6 +757,8 @@ Nothing in this package is on the critical path. Revisit only after a month of r
 **`/up` healthcheck + uptime ping** (§13). Rails 8 generates `/up`. Point something at it. You want to know it's down before you're standing in a restaurant discovering it.
 
 **Runaway-cost guardrail.** `MAX_ITERATIONS = 5` caps a single turn, but nothing caps a loop that re-enqueues. Log per-turn token usage from WP4 onward and glance at the Anthropic console during the first week. Cheap insurance on an app with no quotas by design.
+
+**An orphan-food sweep, agreed 2026-08-22 and not yet built.** Delete a food when nothing references it **and** it holds nothing a name alone doesn't — no macros, no `serving_g`, no barcode. Not "was it created by the chat": `source` is `user_custom` for both the chat's rows and the manual form, and provenance is not the property that matters. The rule as stated protects the 190 imported recipes, which have macros and mostly zero entries — `#406 Portobello Sandwich` is the row that proves "no entries" cannot be the rule on its own. It belongs in `config/recurring.yml` as a periodic sweep rather than a hook on entry deletion, because `update_meal` re-pointing an entry at a different food strands the old one too, so a deletion hook is incomplete by construction. Size it accordingly: these rows are **invisible**, since every read filters on having macros (`Food.loggable` in search, `where.not(calories_per_100g: nil)` in the chat's hints). Housekeeping, not a user-facing bug.
 
 ---
 
