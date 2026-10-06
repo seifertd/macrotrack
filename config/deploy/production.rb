@@ -1,4 +1,4 @@
-server "das", user: "doug", roles: %w[app web db]
+server "capo", user: "doug", roles: %w[app web db]
 
 set :deploy_to, "/home/doug/webapps/macrotrack/production"
 
