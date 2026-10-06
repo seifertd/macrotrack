@@ -11,7 +11,7 @@ Environment="RAILS_ENV=<%= rails_env %>"
 # Runs the Solid Queue supervisor inside Puma (config/puma.rb) rather than as a
 # second unit — two users, a handful of jobs a day, one process to supervise.
 Environment="SOLID_QUEUE_IN_PUMA=1"
-ExecStart=<%= wrapper_bin %> exec ./bin/rails server -p <%= app_port %>
+ExecStart=<%= wrapper_bin %> exec ./bin/rails server -b 127.0.0.1 -p <%= app_port %>
 Restart=always
 ExecReload=/bin/kill -USR1 $MAINPID
 KillMode=mixed
