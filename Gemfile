@@ -65,4 +65,4 @@ group :development do
 end
 
 gem "anthropic", "~> 1.73"
-gem "faraday", "~> 2.14"
+gem "faraday", "~> 2.15"
