@@ -28,7 +28,10 @@ class VoiceEntriesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_equal 1, provider.transcribed.length
-    assert_match(/\.mp3\z|\.wav\z|[0-9a-z]{20,}/, provider.transcribed.first, "a real file on disk was handed over")
+    # Not the path's shape: Rails 8.1.4.1 names blob.open tempfiles without the blob key
+    # or an extension. whisper-cli sniffs the format from the bytes, so only the bytes count.
+    assert_equal File.size(file_fixture("ramble.mp3")), provider.read.first,
+      "a real file on disk, holding the whole recording, was handed over"
   end
 
   # §7 path 1 does not care how the words arrived.
