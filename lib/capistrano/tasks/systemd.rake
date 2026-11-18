@@ -19,6 +19,7 @@ namespace :deploy do
     # The rvm wrapper for the deployed ruby@gemset — the single source of truth
     # that keeps the unit's ruby in sync with :rvm_ruby_version on every deploy.
     wrapper_bin       = "#{rvm_path}/wrappers/#{fetch(:rvm_ruby_version)}/bundle"
+    shared_env_file   = shared_path.join("config/macrotrack.env")
 
     template = File.expand_path("../../../../config/deploy/templates/systemd_service.erb", __FILE__)
     rendered = ERB.new(File.read(template), trim_mode: "-").result(binding)

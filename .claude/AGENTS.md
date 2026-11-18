@@ -81,6 +81,9 @@ can run one inline with `! <command>`.
 - Database password — only in `shared/config/database.yml` (mode 600) on the host. The
   backup script parses it from there rather than keeping a second copy in `.pgpass`.
 - Both are in `:linked_files`, so a release swap never touches them.
+- `shared/config/macrotrack.env` — optional, host-only `KEY=value` lines loaded by the
+  systemd unit's `EnvironmentFile=-`. Holds `OFF_CONTACT_EMAIL` (the OpenFoodFacts
+  User-Agent contact); unset, the site URL is used. Restart the service after editing it.
 
 ## Deploying
 

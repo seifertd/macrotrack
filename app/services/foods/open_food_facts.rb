@@ -20,7 +20,12 @@ module Foods
     # OpenFoodFacts asks that clients identify themselves and rate-limits anonymous
     # traffic harder. Two phones will never approach the limit, but being a good citizen
     # of a free community database costs one header.
-    USER_AGENT = "MacroTrack/1.0 (household nutrition tracker; doug@dseifert.net)".freeze
+    #
+    # The contact comes from the environment because the repo is public; on the box it is
+    # set in shared/config/macrotrack.env, which the systemd unit loads. Unset, the site's
+    # URL stands in — OFF accepts a URL as the contact, and it still names who is calling.
+    USER_AGENT = "MacroTrack/1.0 (household nutrition tracker; " \
+                 "#{ENV.fetch('OFF_CONTACT_EMAIL', 'https://macros.dseifert.net')})".freeze
 
     TIMEOUT = 5
 
