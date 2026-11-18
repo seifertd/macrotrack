@@ -815,7 +815,7 @@ Realistic total: **10–14 evenings** to the end of WP6, which is the version yo
 
 ## Still needs your answer
 
-1. **`users.name` and email for your wife** — the seeds currently fall back to `Partner` / `partner@example.com`. Set `PARTNER_NAME` and `PARTNER_EMAIL` when you seed production, or edit `db/seeds.rb`.
+1. **`users.name` and email for your wife** — the name still falls back to `Partner`; the email no longer has a fallback (2026-11-17, when the repo went public). Set `PARTNER_NAME` and `PARTNER_EMAIL` when you seed, along with `DOUG_EMAIL`.
 2. **DNS A record** for `macros.dseifert.net` → das. The one WP2 blocker with lead time.
 3. **The PG 18 cluster's port on das** — falls out of your install; write it here when you know it.
 

@@ -12,8 +12,10 @@ one lives is noted; the values stay on the host and in `credentials.yml.enc`.
 ## Shape of the thing
 
 - **Two users**, one household, no signup route by design (§4). Users come from
-  `db/seeds.rb`, which takes passwords from `DOUG_PASSWORD` / `PARTNER_PASSWORD`
-  in the environment so real ones never land in git.
+  `db/seeds.rb`, which takes email addresses and passwords from `DOUG_EMAIL` /
+  `DOUG_PASSWORD` / `PARTNER_EMAIL` / `PARTNER_PASSWORD` in the environment so real ones
+  never land in git. There is no fallback address on purpose: users are looked up by email,
+  so a wrong default would create a third account rather than update an existing one.
 - **Ruby 3.4.9**, gemset `macrotrack` (`.ruby-version` / `.ruby-gemset` are the single
   source of truth — `config/deploy.rb` derives the rvm wrapper path from them, which is
   what keeps the systemd unit from pinning a stale Ruby after a version bump).
@@ -55,7 +57,7 @@ one lives is noted; the values stay on the host and in `credentials.yml.enc`.
 | Service | systemd **user** unit `macrotrack.service` (`systemctl --user`, not system-wide) |
 | Database | Postgres; `macrotrack_production` plus `_cache` / `_queue` / `_cable` |
 | Backups | nightly `script/backup_production_db.sh`, 30 days, into `/home/doug/webapps/backups/macrotrack` |
-| Repo | `github.com/seifertd/macrotrack`, **private**, deploys from `main` |
+| Repo | `github.com/seifertd/macrotrack`, **public** (since 2026-11-17), deploys from `main` |
 
 It is a **2-core, 3GB box**, and that constrains real decisions. Puma's 3 threads, the
 job workers and Postgres all share those two cores, and a whisper transcription takes
