@@ -19,7 +19,7 @@ one lives is noted; the values stay on the host and in `credentials.yml.enc`.
   what keeps the systemd unit from pinning a stale Ruby after a version bump).
 - **AI**: `claude-opus-5`, 8192-token budget per chat turn. Roughly $0.037 per logged
   meal. Anthropic console spend for this account is entirely this app.
-- **Voice**: whisper.cpp, self-hosted on the box, `small.en`. Not an API — there is no
+- **Voice**: whisper.cpp, self-hosted on the box (`~/whisper.cpp`), `small.en`. Not an API — there is no
   STT vendor and no per-minute cost. See `app/services/stt/whisper.rb` for why `small.en`
   and not `base.en`, and why there is deliberately no initial prompt.
 - **Rate limits** on the four endpoints that cost something. `sessions#create` and
@@ -47,10 +47,10 @@ one lives is noted; the values stay on the host and in `credentials.yml.enc`.
 
 | | |
 |---|---|
-| Host | `das` (ssh as `doug`, passwordless key auth) |
+| Host | `capo` — Ubuntu 26.04 Linode (ssh as `doug`, passwordless key auth). Replaced `das` on 2026-10-05 via an IP swap |
 | URL | https://macros.dseifert.net |
 | Deploy root | `/home/doug/webapps/macrotrack/production` |
-| App server | Puma, 3 threads, bound to **:4001**, behind nginx |
+| App server | Puma, 3 threads, bound to **127.0.0.1:4001** (loopback only), behind nginx |
 | Jobs | Solid Queue **inside Puma** (`SOLID_QUEUE_IN_PUMA=1`) — one process, not two |
 | Service | systemd **user** unit `macrotrack.service` (`systemctl --user`, not system-wide) |
 | Database | Postgres; `macrotrack_production` plus `_cache` / `_queue` / `_cable` |
@@ -65,7 +65,7 @@ free here.
 
 ### sudo needs a password
 
-**SSH to `das` is passwordless; `sudo` is not.** Nothing automated can assume it. This is
+**SSH to `capo` is passwordless; `sudo` is not.** Nothing automated can assume it. This is
 why `nginx:check` (unprivileged, runs every deploy, reports drift) is split from
 `nginx:install` (privileged, prints the exact commands when it can't run them).
 
@@ -107,7 +107,7 @@ Two things worth knowing:
 There is **no `bundle` on `PATH` over ssh**. Use the rvm wrapper:
 
 ```sh
-ssh das
+ssh capo
 cd /home/doug/webapps/macrotrack/production/current
 /usr/local/rvm/wrappers/ruby-3.4.9@macrotrack/bundle exec rails <task>   # RAILS_ENV=production
 ```
@@ -118,6 +118,10 @@ The vhost is version-controlled at `config/deploy/nginx/macros.dseifert.net.conf
 rebuilt box or a certbot rewrite can be reconciled against a known-good copy. TLS is
 Let's Encrypt, managed by certbot — **don't hand-edit the `# managed by Certbot` lines.**
 `client_max_body_size` is 25M on purpose: voice clips can be long.
+
+The upstream is `127.0.0.1:4001`, **not `localhost`**. On capo, `localhost` resolves to
+`::1` first and Puma listens on IPv4 loopback only, so nginx would log a refused
+connection on every request before falling back.
 
 ## Verifying work here
 
