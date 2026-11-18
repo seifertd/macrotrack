@@ -12,7 +12,12 @@ set :scm_verbose, true
 
 # config/master.key and config/*.key are gitignored, so they live in
 # shared/config/ on the host and are symlinked into each release.
-append :linked_files, "config/database.yml", "config/master.key", "config/credentials.yml.enc"
+#
+# credentials.yml.enc is deliberately NOT linked: it is committed and encrypted, and the
+# repo's copy is the one that must ship. Linking it once pinned production to a stale
+# shared copy, so a key rotated in git never reached the box and revoking the old key
+# took the AI down with a 401.
+append :linked_files, "config/database.yml", "config/master.key"
 
 # `storage` holds Active Storage blobs (the WP5 audio) and must survive a
 # release swap, so it lives in shared/ rather than inside the release.

@@ -80,7 +80,10 @@ can run one inline with `! <command>`.
   is symlinked into each release. `credentials.yml.enc` is the only half that is committed.
 - Database password — only in `shared/config/database.yml` (mode 600) on the host. The
   backup script parses it from there rather than keeping a second copy in `.pgpass`.
-- Both are in `:linked_files`, so a release swap never touches them.
+- Both are in `:linked_files`, so a release swap never touches them. `credentials.yml.enc`
+  is **not**, on purpose: each release ships the committed copy, so rotating a secret is
+  edit → commit → push → deploy. It used to be linked, which silently pinned production to
+  a stale copy in `shared/` and broke the AI the moment the old Anthropic key was revoked.
 - `shared/config/macrotrack.env` — optional, host-only `KEY=value` lines loaded by the
   systemd unit's `EnvironmentFile=-`. Holds `OFF_CONTACT_EMAIL` (the OpenFoodFacts
   User-Agent contact); unset, the site URL is used. Restart the service after editing it.
